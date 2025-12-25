@@ -994,6 +994,11 @@ describe('StationResolver', () => {
   - [x] Fuzzy search tests (Levenshtein)
   - [x] Error response tests
 - [x] Fuzzy search tests (`tests/lib/fuzzy.test.ts`)
+- [x] TPASS module tests (`tests/lib/tpass.test.ts`)
+  - [x] Train type eligibility tests
+  - [x] Station region lookup tests
+  - [x] Cross-region detection tests
+  - [x] Region query tests
 - [x] Config service tests (`tests/services/config.test.ts`)
 - [x] Auth service tests (`tests/services/auth.test.ts`)
 - [x] API client tests (`tests/services/api.test.ts`)
@@ -1012,9 +1017,14 @@ describe('StationResolver', () => {
 - [x] `tra stations` command
 - [x] `tra timetable daily` command
 - [x] `tra timetable train` command
+- [x] `tra tpass` command (TPASS 月票查詢)
+  - [x] `tra tpass check` - 檢查起訖站適用性
+  - [x] `tra tpass regions` - 列出生活圈
+  - [x] `tra tpass stations` - 列出生活圈車站
+  - [x] `--tpass` option for timetable filtering
 - [x] Cache infrastructure
 
-**Deliverable**: 可查詢車站、每日時刻表、車次時刻表（測試覆蓋率 >80%）
+**Deliverable**: 可查詢車站、每日時刻表、車次時刻表、TPASS 適用性（測試覆蓋率 >80%）
 
 ### Phase 2: Core Features
 
