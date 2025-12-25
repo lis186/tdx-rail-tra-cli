@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 工作規範
+
+- **語言**：一律使用正體中文（台灣）回應
+- **進度追蹤**：完成 PRD.md 中的任一階段項目後，立即更新該項目的勾選狀態 `[ ]` → `[x]`
+- **自動提交**：更新進度後自動執行 git commit
+
 ## Project Overview
 
 **tdx-rail-tra-cli** is a Taiwan Railway (TRA) CLI tool powered by the TDX (Transport Data eXchange) API. It provides station queries, timetables, fares, real-time train data, and booking link generation. Designed for AI agents (Claude Code, Gemini CLI, n8n) with JSON-first output.
