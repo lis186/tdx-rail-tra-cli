@@ -1066,7 +1066,7 @@ describe('StationResolver', () => {
 - [x] `tra timetable station` command
 - [x] `tra lines` commands (list, get, stations)
 - [x] Table output format (`src/utils/output.ts`)
-- [ ] Watch mode (`--watch`)
+- [x] Watch mode (`--watch`) - `src/utils/watch.ts`
 
 **Deliverable**: 完整 CLI 功能（測試覆蓋率 >80%）
 

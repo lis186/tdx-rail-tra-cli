@@ -13,6 +13,7 @@ import {
   STATION_CORRECTIONS,
 } from '../data/stations.js';
 import type { TrainLiveBoard, TrainDelay, StationLiveBoard } from '../types/api.js';
+import { runWithWatch } from '../utils/watch.js';
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -44,10 +45,14 @@ export const liveCommand = new Command('live')
 liveCommand
   .command('train <trainNo>')
   .description('查詢車次即時位置')
+  .option('--watch', '持續監控模式')
+  .option('--interval <seconds>', '監控更新間隔（秒）', '30')
   .action(async (trainNo, options, cmd) => {
     const format = cmd.optsWithGlobals().format || 'json';
+    const watch = options.watch || false;
+    const interval = parseInt(options.interval, 10);
 
-    try {
+    const fetchAndDisplay = async () => {
       const api = getApiClient();
       const liveBoard = await api.getTrainLiveBoard(trainNo);
 
@@ -64,7 +69,8 @@ liveCommand
           console.error(`找不到車次 ${trainNo} 的即時資訊`);
           console.error('提示：車次可能尚未發車或已抵達終點站');
         }
-        process.exit(1);
+        if (!watch) process.exit(1);
+        return;
       }
 
       if (format === 'json') {
@@ -75,6 +81,14 @@ liveCommand
       } else {
         printLiveBoard(liveBoard);
       }
+    };
+
+    try {
+      await runWithWatch(fetchAndDisplay, watch, {
+        interval,
+        clearScreen: format !== 'json',
+        showUpdateTime: format !== 'json',
+      });
     } catch (error) {
       if (format === 'json') {
         console.log(JSON.stringify({
@@ -211,8 +225,12 @@ liveCommand
   .description('查詢車站即時到離站資訊')
   .option('--direction <dir>', '方向篩選：0=順行（南下）、1=逆行（北上）')
   .option('--limit <number>', '限制顯示數量', '20')
+  .option('--watch', '持續監控模式')
+  .option('--interval <seconds>', '監控更新間隔（秒）', '30')
   .action(async (station, options, cmd) => {
     const format = cmd.optsWithGlobals().format || 'json';
+    const watch = options.watch || false;
+    const interval = parseInt(options.interval, 10);
 
     // 解析車站
     const result = resolver.resolve(station);
@@ -230,7 +248,7 @@ liveCommand
 
     const stationInfo = result.station;
 
-    try {
+    const fetchAndDisplay = async () => {
       const api = getApiClient();
       let liveBoards = await api.getStationLiveBoard(stationInfo.id);
 
@@ -258,6 +276,14 @@ liveCommand
       } else {
         printStationLiveBoard(stationInfo, liveBoards);
       }
+    };
+
+    try {
+      await runWithWatch(fetchAndDisplay, watch, {
+        interval,
+        clearScreen: format !== 'json',
+        showUpdateTime: format !== 'json',
+      });
     } catch (error) {
       if (format === 'json') {
         console.log(JSON.stringify({
