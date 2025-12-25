@@ -930,7 +930,7 @@ describe('StationResolver', () => {
 - [x] PRD
 - [x] Project setup (TypeScript, Commander, Bun, Vitest)
 - [x] Station resolver module (from n8n workflow)
-  - [ ] Embedded station data (220+ stations with coordinates)
+  - [x] Embedded station data (220+ stations with coordinates)
   - [x] Name correction table
   - [x] Fuzzy search (Levenshtein)
 - [x] Config management (`tra config`)
