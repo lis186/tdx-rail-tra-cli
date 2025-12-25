@@ -924,7 +924,7 @@ describe('StationResolver', () => {
 - [x] Config service tests (`tests/services/config.test.ts`)
 - [x] Auth service tests (`tests/services/auth.test.ts`)
 - [ ] API client tests (`tests/services/api.test.ts`)
-- [ ] Cache service tests (`tests/services/cache.test.ts`)
+- [x] Cache service tests (`tests/services/cache.test.ts`)
 
 **Implementation**:
 - [x] PRD
@@ -939,7 +939,7 @@ describe('StationResolver', () => {
 - [ ] `tra stations` command
 - [ ] `tra timetable daily` command
 - [ ] `tra timetable train` command
-- [ ] Cache infrastructure
+- [x] Cache infrastructure
 
 **Deliverable**: 可查詢車站、每日時刻表、車次時刻表（測試覆蓋率 >80%）
 
