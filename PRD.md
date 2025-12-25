@@ -923,7 +923,7 @@ describe('StationResolver', () => {
 - [x] Fuzzy search tests (`tests/lib/fuzzy.test.ts`)
 - [x] Config service tests (`tests/services/config.test.ts`)
 - [x] Auth service tests (`tests/services/auth.test.ts`)
-- [ ] API client tests (`tests/services/api.test.ts`)
+- [x] API client tests (`tests/services/api.test.ts`)
 - [x] Cache service tests (`tests/services/cache.test.ts`)
 
 **Implementation**:
@@ -935,7 +935,7 @@ describe('StationResolver', () => {
   - [x] Fuzzy search (Levenshtein)
 - [x] Config management (`tra config`)
 - [x] Auth service (OAuth2 token)
-- [ ] Basic API client with error handling
+- [x] Basic API client with error handling
 - [ ] `tra stations` command
 - [ ] `tra timetable daily` command
 - [ ] `tra timetable train` command
