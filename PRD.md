@@ -1056,17 +1056,17 @@ describe('StationResolver', () => {
 - [x] Station liveboard tests (`tests/commands/live-station.test.ts`) - 6 tests
 - [x] Station timetable tests (`tests/commands/timetable-station.test.ts`) - 6 tests
 - [x] Lines command tests (`tests/commands/lines.test.ts`) - 11 tests
-- [ ] Output formatter tests (`tests/utils/output.test.ts`)
-  - [ ] Table format tests
-  - [ ] CSV format tests
-  - [ ] JSON format tests
+- [x] Output formatter tests (`tests/utils/output.test.ts`) - 32 tests
+  - [x] Table format tests
+  - [x] CSV format tests
+  - [x] JSON format tests
 
 **Implementation**:
 - [x] `tra live station` command
 - [x] `tra timetable station` command
 - [x] `tra lines` commands (list, get, stations)
+- [x] Table output format (`src/utils/output.ts`)
 - [ ] Watch mode (`--watch`)
-- [ ] Table output format
 
 **Deliverable**: 完整 CLI 功能（測試覆蓋率 >80%）
 
