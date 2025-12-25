@@ -922,7 +922,7 @@ describe('StationResolver', () => {
   - [x] Error response tests
 - [x] Fuzzy search tests (`tests/lib/fuzzy.test.ts`)
 - [x] Config service tests (`tests/services/config.test.ts`)
-- [ ] Auth service tests (`tests/services/auth.test.ts`)
+- [x] Auth service tests (`tests/services/auth.test.ts`)
 - [ ] API client tests (`tests/services/api.test.ts`)
 - [ ] Cache service tests (`tests/services/cache.test.ts`)
 
@@ -934,7 +934,7 @@ describe('StationResolver', () => {
   - [x] Name correction table
   - [x] Fuzzy search (Levenshtein)
 - [x] Config management (`tra config`)
-- [ ] Auth service (OAuth2 token)
+- [x] Auth service (OAuth2 token)
 - [ ] Basic API client with error handling
 - [ ] `tra stations` command
 - [ ] `tra timetable daily` command
