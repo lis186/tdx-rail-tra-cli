@@ -285,6 +285,8 @@ tra timetable daily --from <station> --to <station> [options]
 # Options:
 --date <YYYY-MM-DD>                # 日期（預設今天）
 --time <HH:MM>                     # 出發時間（篩選此時間後的班次）
+--tpass                            # 僅顯示 TPASS 適用車種（見 TPASS 說明）
+--type <types>                     # 篩選車種（逗號分隔）
 
 # 車次時刻表（對應 GeneralTrainTimetable/TrainNo）
 tra timetable train <train-no>
@@ -306,7 +308,17 @@ tra timetable daily --from 1000 --to 4400 --date 2025-12-26 --time 08:00
 
 # 查詢 123 車次時刻
 tra timetable train 123
+
+# 查詢 TPASS 可用班次（自動檢查生活圈）
+tra timetable daily --from 台北 --to 桃園 --tpass
 ```
+
+**TPASS 篩選邏輯**：
+
+使用 `--tpass` 時，CLI 會：
+1. 檢查起訖站是否在同一 TPASS 生活圈
+2. 若跨區，顯示警告並返回空結果
+3. 若同區，篩選適用車種（排除 EMU3000、普悠瑪、太魯閣等）
 
 #### `tra fare` - 票價查詢 ⭐
 
@@ -444,6 +456,67 @@ tra lines list                     # 列出所有路線
 tra lines get <id>                 # 路線詳情
 tra lines stations <id>            # 路線經過的車站
 ```
+
+#### `tra tpass` - TPASS 月票查詢 ⭐
+
+```bash
+# 檢查起訖站 TPASS 適用性
+tra tpass check <from> <to>
+
+# 列出生活圈及其車站
+tra tpass regions                  # 列出所有生活圈
+tra tpass stations <region>        # 列出指定生活圈的車站
+
+# Options:
+--format json|table                # 輸出格式
+```
+
+**範例**：
+
+```bash
+# 檢查台北到桃園是否可用 TPASS
+$ tra tpass check 台北 桃園
+{
+  "eligible": true,
+  "region": "基北北桃",
+  "price": 1200,
+  "trainTypes": ["區間", "區間快", "莒光", "復興", "PP自強"]
+}
+
+# 檢查跨區路線
+$ tra tpass check 台北 新竹
+{
+  "eligible": false,
+  "reason": "跨生活圈",
+  "from": { "station": "臺北", "regions": ["基北北桃"] },
+  "to": { "station": "新竹", "regions": ["桃竹竹苗"] }
+}
+
+# 列出基北北桃生活圈車站
+$ tra tpass stations 基北北桃
+```
+
+**TPASS 生活圈**：
+
+| 生活圈 | 票價 | 涵蓋區域 |
+|--------|------|---------|
+| 基北北桃 | $1,200 | 基隆、台北、新北、桃園 |
+| 桃竹竹苗 | $1,200 | 桃園、新竹縣市、苗栗 |
+| 中彰投苗 | $699~999 | 台中、彰化、南投、苗栗 |
+| 雲林 | $199~399 | 雲林（可擴及彰化、嘉義部分） |
+| 嘉義 | $399 | 大林～南靖 |
+| 南高屏 | $399~999 | 台南、高雄、屏東 |
+| 北宜 | $750~1,800 | 基北北 + 宜蘭 + 和平 |
+| 花蓮 | $199~399 | 花蓮縣 |
+| 臺東 | $299 | 臺東縣 |
+
+**不適用 TPASS 車種**：
+- EMU3000 型自強號（車名含 3000、EMU3000）
+- 普悠瑪
+- 太魯閣
+- 觀光列車（藍皮解憂號、鳴日號等）
+- 團體列車
+- 商務專開列車
 
 #### `tra completion` - Shell 自動補全
 
@@ -1249,3 +1322,178 @@ const status = formatDelayStatus(train.delayTime, true);
 - TRA 資料 API Swagger: https://tdx.transportdata.tw/webapi/File/Swagger/V3/5fa88b0c-120b-43f1-b188-c379ddb2593d
 - TRA 訂票 API Swagger: https://tdx.transportdata.tw/webapi/File/Swagger/V3/ad884f5e-4692-4600-8662-12abf40e5946
 - TDX Portal: https://tdx.transportdata.tw/
+
+## Appendix E: TPASS Data Structure
+
+### 資料來源
+
+TPASS 資料為靜態資料，來自台鐵官方公告：
+- https://www.railway.gov.tw/tra-tip-web/tip/tip00H/tipH41/view41
+
+### 生活圈定義
+
+```typescript
+// src/data/tpass-regions.ts
+
+export interface TpassRegion {
+  id: string;              // 生活圈 ID（英文代號）
+  name: string;            // 生活圈名稱
+  price: number;           // 月票價格
+  stationIds: string[];    // 包含的車站 ID 列表
+}
+
+export const TPASS_REGIONS: TpassRegion[] = [
+  {
+    id: 'kpnt',
+    name: '基北北桃',
+    price: 1200,
+    stationIds: [
+      '0900', '0910', '0920', // 基隆、三坑、八堵
+      '0930', '0940', '0950', // 七堵、百福、五堵
+      '0960', '0970', '0980', // 汐止、汐科、南港
+      '0990', '1000', '1001', // 松山、臺北、萬華
+      '1002', '1010', '1020', // 板橋、浮洲、樹林
+      '1030', '1040', '1050', // 南樹林、山佳、鶯歌
+      '1060', '1070', '1080', // 桃園、內壢、中壢
+      // ... 其他站
+    ]
+  },
+  {
+    id: 'tzms',
+    name: '桃竹竹苗',
+    price: 1200,
+    stationIds: [
+      '1060', '1070', '1080', // 桃園、內壢、中壢
+      '1090', '1100', '1110', // 埔心、楊梅、富岡
+      '1120', '1130', '1140', // 新富、北湖、湖口
+      '1150', '1160', '1170', // 新豐、竹北、北新竹
+      '1180', '1190', '1200', // 新竹、三姓橋、香山
+      '1210', '1220', '1230', // 崎頂、竹南、談文
+      // ... 其他站
+    ]
+  },
+  // ... 其他生活圈
+];
+```
+
+### 不適用 TPASS 車種判斷
+
+```typescript
+// src/lib/tpass.ts
+
+/**
+ * 檢查車種是否適用 TPASS
+ * 傳入 TrainTypeName.Zh_tw 或車種代碼
+ */
+export function isTpassEligibleTrainType(trainTypeName: string): boolean {
+  // 排除的關鍵字
+  const excludedKeywords = [
+    'EMU3000', '3000',      // EMU3000 型自強號
+    '普悠瑪', 'PUYUMA',
+    '太魯閣', 'TAROKO',
+    '觀光', '藍皮', '鳴日',  // 觀光列車
+    '團體',                  // 團體列車
+    '商務'                   // 商務專開
+  ];
+
+  const upperName = trainTypeName.toUpperCase();
+  return !excludedKeywords.some(kw => upperName.includes(kw.toUpperCase()));
+}
+
+/**
+ * 取得車站所屬的生活圈列表
+ * 一個車站可能屬於多個生活圈（如桃園同時在基北北桃和桃竹竹苗）
+ */
+export function getStationRegions(stationId: string): TpassRegion[] {
+  return TPASS_REGIONS.filter(region =>
+    region.stationIds.includes(stationId)
+  );
+}
+
+/**
+ * 取得起訖站共同的生活圈
+ * 返回空陣列表示跨區
+ */
+export function getCommonRegions(fromId: string, toId: string): TpassRegion[] {
+  const fromRegions = getStationRegions(fromId);
+  const toRegions = getStationRegions(toId);
+
+  return fromRegions.filter(fr =>
+    toRegions.some(tr => tr.id === fr.id)
+  );
+}
+```
+
+### 生活圈完整定義
+
+| ID | 名稱 | 票價 | 涵蓋範圍 | 車站數 |
+|----|------|------|----------|--------|
+| kpnt | 基北北桃 | $1,200 | 基隆～中壢（含支線） | ~60 |
+| tzms | 桃竹竹苗 | $1,200 | 桃園～苗栗（含海線、內灣線） | ~45 |
+| zcnm | 中彰投苗 | $699~999 | 苗栗～南投（不含舊山線） | ~40 |
+| yunlin | 雲林 | $199~399 | 雲林縣境（林內～斗南） | ~10 |
+| chiayi | 嘉義 | $399 | 大林～南靖 | ~10 |
+| ngkp | 南高屏 | $399~999 | 嘉義～屏東（含沙崙線） | ~50 |
+| beyi | 北宜 | $750~1,800 | 基北北桃 + 宜蘭～和平 | ~70 |
+| hualien | 花蓮 | $199~399 | 花蓮縣（和平～光復） | ~20 |
+| taitung | 臺東 | $299 | 臺東縣（關山～太麻里） | ~15 |
+
+### 跨區判斷邏輯
+
+```
+起點：臺北（基北北桃）
+終點：新竹（桃竹竹苗）
+
+1. 取得起點生活圈：[基北北桃]
+2. 取得終點生活圈：[桃竹竹苗]
+3. 計算交集：[]
+4. 交集為空 → 跨區，不適用 TPASS
+
+起點：臺北（基北北桃）
+終點：桃園（基北北桃, 桃竹竹苗）
+
+1. 取得起點生活圈：[基北北桃]
+2. 取得終點生活圈：[基北北桃, 桃竹竹苗]
+3. 計算交集：[基北北桃]
+4. 交集非空 → 可用 TPASS（基北北桃 $1,200）
+```
+
+### CLI 輸出範例
+
+```bash
+# 同區查詢
+$ tra tpass check 台北 桃園
+{
+  "eligible": true,
+  "regions": [
+    { "name": "基北北桃", "price": 1200 }
+  ],
+  "eligibleTrainTypes": ["區間", "區間快", "莒光", "復興", "自強（非EMU3000）"]
+}
+
+# 跨區查詢
+$ tra tpass check 台北 新竹
+{
+  "eligible": false,
+  "reason": "CROSS_REGION",
+  "from": {
+    "station": "臺北",
+    "regions": ["基北北桃"]
+  },
+  "to": {
+    "station": "新竹",
+    "regions": ["桃竹竹苗"]
+  },
+  "suggestion": "臺北與新竹分屬不同生活圈，無法使用同一張 TPASS"
+}
+
+# 重疊站點
+$ tra tpass check 桃園 新竹
+{
+  "eligible": true,
+  "regions": [
+    { "name": "桃竹竹苗", "price": 1200 }
+  ],
+  "note": "桃園同時屬於基北北桃和桃竹竹苗，使用桃竹竹苗生活圈"
+}
+```

@@ -56,14 +56,18 @@ describe('TDXApiClient', () => {
   });
 
   describe('getDailyTimetable', () => {
-    const mockTimetable: DailyTrainTimetable[] = [
+    const mockTimetables: DailyTrainTimetable[] = [
       {
         TrainDate: '2025-01-15',
-        DailyTrainInfo: {
+        TrainInfo: {
           TrainNo: '123',
           Direction: 0,
+          TrainTypeID: '1100',
+          TrainTypeCode: '1',
           TrainTypeName: { Zh_tw: '自強', En: 'Tze-Chiang' },
+          StartingStationID: '1000',
           StartingStationName: { Zh_tw: '臺北', En: 'Taipei' },
+          EndingStationID: '4400',
           EndingStationName: { Zh_tw: '高雄', En: 'Kaohsiung' },
         },
         StopTimes: [
@@ -83,12 +87,19 @@ describe('TDXApiClient', () => {
       },
     ];
 
+    // Wrapped response as returned by v3 API
+    const mockResponse = {
+      UpdateTime: '2025-01-15T00:00:00+08:00',
+      TrainDate: '2025-01-15',
+      TrainTimetables: mockTimetables,
+    };
+
     it('should fetch daily timetable for OD pair', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce(mockTimetable);
+      vi.mocked(ofetch).mockResolvedValueOnce(mockResponse);
 
       const result = await apiClient.getDailyTimetable('1000', '4400', '2025-01-15');
 
-      expect(result).toEqual(mockTimetable);
+      expect(result).toEqual(mockTimetables);
       expect(ofetch).toHaveBeenCalledWith(
         expect.stringContaining('/v3/Rail/TRA/DailyTrainTimetable/OD/1000/to/4400/2025-01-15'),
         expect.objectContaining({
@@ -104,30 +115,30 @@ describe('TDXApiClient', () => {
       const client = new TDXApiClient(mockClientId, mockClientSecret);
       // 取得 cache 實例並設定返回值
       const cacheInstance = (client as unknown as { cache: { get: ReturnType<typeof vi.fn> } }).cache;
-      cacheInstance.get.mockReturnValue(mockTimetable);
+      cacheInstance.get.mockReturnValue(mockTimetables);
 
       const result = await client.getDailyTimetable('1000', '4400', '2025-01-15');
 
-      expect(result).toEqual(mockTimetable);
+      expect(result).toEqual(mockTimetables);
       expect(cacheInstance.get).toHaveBeenCalledWith('timetable/od-1000-4400-2025-01-15');
       expect(ofetch).not.toHaveBeenCalled();
     });
 
     it('should cache response after fetch', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce(mockTimetable);
+      vi.mocked(ofetch).mockResolvedValueOnce(mockResponse);
 
       await apiClient.getDailyTimetable('1000', '4400', '2025-01-15');
 
       const cacheInstance = (apiClient as unknown as { cache: { set: ReturnType<typeof vi.fn> } }).cache;
       expect(cacheInstance.set).toHaveBeenCalledWith(
         'timetable/od-1000-4400-2025-01-15',
-        mockTimetable,
+        mockTimetables,
         expect.any(Number)
       );
     });
 
     it('should skip cache when skipCache option is true', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce(mockTimetable);
+      vi.mocked(ofetch).mockResolvedValueOnce(mockResponse);
 
       await apiClient.getDailyTimetable('1000', '4400', '2025-01-15', { skipCache: true });
 
@@ -142,8 +153,12 @@ describe('TDXApiClient', () => {
       TrainInfo: {
         TrainNo: '123',
         Direction: 0,
+        TrainTypeID: '1100',
+        TrainTypeCode: '1',
         TrainTypeName: { Zh_tw: '自強', En: 'Tze-Chiang' },
+        StartingStationID: '1000',
         StartingStationName: { Zh_tw: '臺北', En: 'Taipei' },
+        EndingStationID: '4400',
         EndingStationName: { Zh_tw: '高雄', En: 'Kaohsiung' },
       },
       StopTimes: [
@@ -156,8 +171,13 @@ describe('TDXApiClient', () => {
       ],
     };
 
+    const mockResponse = {
+      UpdateTime: '2025-01-15T00:00:00+08:00',
+      TrainTimetables: [mockTimetable],
+    };
+
     it('should fetch train timetable by train number', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce([mockTimetable]);
+      vi.mocked(ofetch).mockResolvedValueOnce(mockResponse);
 
       const result = await apiClient.getTrainTimetable('123');
 
@@ -169,7 +189,7 @@ describe('TDXApiClient', () => {
     });
 
     it('should return null when train not found', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce([]);
+      vi.mocked(ofetch).mockResolvedValueOnce({ TrainTimetables: [] });
 
       const result = await apiClient.getTrainTimetable('999999');
 
@@ -187,8 +207,13 @@ describe('TDXApiClient', () => {
       UpdateTime: '2025-01-15T08:30:00+08:00',
     };
 
+    const mockResponse = {
+      UpdateTime: '2025-01-15T08:30:00+08:00',
+      TrainLiveBoards: [mockLiveBoard],
+    };
+
     it('should fetch live train position', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce([mockLiveBoard]);
+      vi.mocked(ofetch).mockResolvedValueOnce(mockResponse);
 
       const result = await apiClient.getTrainLiveBoard('123');
 
@@ -200,7 +225,7 @@ describe('TDXApiClient', () => {
     });
 
     it('should return null when train not found', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce([]);
+      vi.mocked(ofetch).mockResolvedValueOnce({ TrainLiveBoards: [] });
 
       const result = await apiClient.getTrainLiveBoard('999999');
 
@@ -208,7 +233,7 @@ describe('TDXApiClient', () => {
     });
 
     it('should not cache live data', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce([mockLiveBoard]);
+      vi.mocked(ofetch).mockResolvedValueOnce(mockResponse);
 
       await apiClient.getTrainLiveBoard('123');
 
@@ -260,8 +285,13 @@ describe('TDXApiClient', () => {
       ],
     };
 
+    const mockResponse = {
+      UpdateTime: '2025-01-15T00:00:00+08:00',
+      ODFares: [mockFare],
+    };
+
     it('should fetch fare for OD pair', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce([mockFare]);
+      vi.mocked(ofetch).mockResolvedValueOnce(mockResponse);
 
       const result = await apiClient.getODFare('1000', '4400');
 
@@ -273,7 +303,7 @@ describe('TDXApiClient', () => {
     });
 
     it('should return null when fare not found', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce([]);
+      vi.mocked(ofetch).mockResolvedValueOnce({ ODFares: [] });
 
       const result = await apiClient.getODFare('9999', '8888');
 
@@ -281,7 +311,7 @@ describe('TDXApiClient', () => {
     });
 
     it('should cache fare data', async () => {
-      vi.mocked(ofetch).mockResolvedValueOnce([mockFare]);
+      vi.mocked(ofetch).mockResolvedValueOnce(mockResponse);
 
       await apiClient.getODFare('1000', '4400');
 

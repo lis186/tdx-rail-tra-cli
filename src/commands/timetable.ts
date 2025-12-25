@@ -12,6 +12,10 @@ import {
   STATION_NICKNAMES,
   STATION_CORRECTIONS,
 } from '../data/stations.js';
+import {
+  checkTpassEligibility,
+  isTpassEligibleTrainType,
+} from '../lib/tpass.js';
 import type { DailyTrainTimetable, GeneralTrainTimetable } from '../types/api.js';
 
 // 初始化
@@ -54,6 +58,7 @@ timetableCommand
   .description('查詢起訖站每日時刻表')
   .option('--after <time>', '只顯示指定時間之後的班次 (HH:MM)')
   .option('--limit <number>', '限制顯示班次數量', '20')
+  .option('--tpass', '僅顯示 TPASS 適用班次')
   .option('--no-cache', '不使用快取')
   .action(async (from, to, date, options, cmd) => {
     const format = cmd.optsWithGlobals().format || 'json';
@@ -89,6 +94,37 @@ timetableCommand
     const fromStation = fromResult.station;
     const toStation = toResult.station;
 
+    // TPASS 生活圈檢查
+    if (options.tpass) {
+      const tpassCheck = checkTpassEligibility(
+        fromStation.id,
+        toStation.id,
+        fromStation.name,
+        toStation.name
+      );
+
+      if (!tpassCheck.eligible) {
+        if (format === 'json') {
+          console.log(JSON.stringify({
+            success: false,
+            error: {
+              code: tpassCheck.reason === 'CROSS_REGION' ? 'TPASS_CROSS_REGION' : 'TPASS_NO_REGION',
+              message: tpassCheck.suggestion,
+              from: tpassCheck.from,
+              to: tpassCheck.to,
+            },
+          }, null, 2));
+        } else {
+          console.error(`TPASS 不適用：${tpassCheck.suggestion}`);
+          if (tpassCheck.from && tpassCheck.to) {
+            console.error(`  起站「${tpassCheck.from.stationName}」所屬生活圈：${tpassCheck.from.regions.join('、') || '無'}`);
+            console.error(`  迄站「${tpassCheck.to.stationName}」所屬生活圈：${tpassCheck.to.regions.join('、') || '無'}`);
+          }
+        }
+        process.exit(1);
+      }
+    }
+
     try {
       const api = getApiClient();
       let timetables = await api.getDailyTimetable(
@@ -105,6 +141,13 @@ timetableCommand
           if (!firstStop?.DepartureTime) return false;
           return firstStop.DepartureTime >= options.after;
         });
+      }
+
+      // 過濾 TPASS 不適用車種
+      if (options.tpass) {
+        timetables = timetables.filter((train) =>
+          isTpassEligibleTrainType(train.TrainInfo.TrainTypeName.Zh_tw)
+        );
       }
 
       // 限制數量
@@ -234,8 +277,8 @@ function formatTimetablesForJson(
     }
 
     return {
-      trainNo: train.DailyTrainInfo.TrainNo,
-      trainType: train.DailyTrainInfo.TrainTypeName.Zh_tw,
+      trainNo: train.TrainInfo.TrainNo,
+      trainType: train.TrainInfo.TrainTypeName.Zh_tw,
       departure,
       arrival,
       duration,
@@ -301,7 +344,7 @@ function printTimetableTable(
 
     const departure = fromStop?.DepartureTime || '--:--';
     const arrival = toStop?.ArrivalTime || '--:--';
-    const trainType = train.DailyTrainInfo.TrainTypeName.Zh_tw.padEnd(8, '　');
+    const trainType = train.TrainInfo.TrainTypeName.Zh_tw.padEnd(8, '　');
 
     // 計算行車時間
     let durationStr = '--';
@@ -316,7 +359,7 @@ function printTimetableTable(
     }
 
     console.log(
-      `${train.DailyTrainInfo.TrainNo}\t${trainType}\t${departure}\t\t${arrival}\t\t${durationStr}`
+      `${train.TrainInfo.TrainNo}\t${trainType}\t${departure}\t\t${arrival}\t\t${durationStr}`
     );
   }
 

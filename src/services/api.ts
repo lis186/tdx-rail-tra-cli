@@ -12,6 +12,11 @@ import type {
   TrainLiveBoard,
   TrainDelay,
   ODFare,
+  DailyTimetableResponse,
+  GeneralTimetableResponse,
+  TrainLiveBoardResponse,
+  TrainDelayResponse,
+  ODFareResponse,
 } from '../types/api.js';
 
 const API_BASE = 'https://tdx.transportdata.tw/api/basic';
@@ -56,7 +61,8 @@ export class TDXApiClient {
 
     // 發送 API 請求
     const url = `${API_BASE}/v3/Rail/TRA/DailyTrainTimetable/OD/${fromStationId}/to/${toStationId}/${date}`;
-    const result = await this.request<DailyTrainTimetable[]>(url);
+    const response = await this.request<DailyTimetableResponse>(url);
+    const result = response.TrainTimetables ?? [];
 
     // 儲存快取
     this.cache.set(cacheKey, result, CACHE_TTL.TIMETABLE);
@@ -77,16 +83,17 @@ export class TDXApiClient {
     }
 
     const url = `${API_BASE}/v3/Rail/TRA/GeneralTrainTimetable/TrainNo/${trainNo}`;
-    const result = await this.request<GeneralTrainTimetable[]>(url);
+    const response = await this.request<GeneralTimetableResponse>(url);
+    const timetables = response.TrainTimetables ?? [];
 
-    if (result.length === 0) {
+    if (timetables.length === 0) {
       return null;
     }
 
     // 儲存快取
-    this.cache.set(cacheKey, result[0], CACHE_TTL.TIMETABLE);
+    this.cache.set(cacheKey, timetables[0], CACHE_TTL.TIMETABLE);
 
-    return result[0];
+    return timetables[0];
   }
 
   /**
@@ -95,14 +102,15 @@ export class TDXApiClient {
    */
   async getTrainLiveBoard(trainNo: string): Promise<TrainLiveBoard | null> {
     const url = `${API_BASE}/v3/Rail/TRA/TrainLiveBoard/TrainNo/${trainNo}`;
-    const result = await this.request<TrainLiveBoard[]>(url);
+    const response = await this.request<TrainLiveBoardResponse>(url);
+    const liveBoards = response.TrainLiveBoards ?? [];
 
-    if (result.length === 0) {
+    if (liveBoards.length === 0) {
       return null;
     }
 
     // 即時資料不快取
-    return result[0];
+    return liveBoards[0];
   }
 
   /**
@@ -139,16 +147,17 @@ export class TDXApiClient {
     }
 
     const url = `${API_BASE}/v3/Rail/TRA/ODFare/${fromStationId}/to/${toStationId}`;
-    const result = await this.request<ODFare[]>(url);
+    const response = await this.request<ODFareResponse>(url);
+    const fares = response.ODFares ?? [];
 
-    if (result.length === 0) {
+    if (fares.length === 0) {
       return null;
     }
 
     // 儲存快取
-    this.cache.set(cacheKey, result[0], CACHE_TTL.FARE);
+    this.cache.set(cacheKey, fares[0], CACHE_TTL.FARE);
 
-    return result[0];
+    return fares[0];
   }
 
   /**

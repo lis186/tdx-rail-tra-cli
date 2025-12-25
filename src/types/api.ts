@@ -35,49 +35,52 @@ export interface StopTime {
 }
 
 /**
- * 每日時刻表
+ * 列車基本資訊 (v3 API 共用)
+ */
+export interface TrainInfo {
+  TrainNo: string;
+  Direction: number;
+  TrainTypeID: string;
+  TrainTypeCode: string;
+  TrainTypeName: {
+    Zh_tw: string;
+    En: string;
+  };
+  TripHeadSign?: string;
+  StartingStationID: string;
+  StartingStationName: {
+    Zh_tw: string;
+    En: string;
+  };
+  EndingStationID: string;
+  EndingStationName: {
+    Zh_tw: string;
+    En: string;
+  };
+  TripLine?: number;
+  WheelChairFlag?: number;
+  PackageServiceFlag?: number;
+  DiningFlag?: number;
+  BreastFeedFlag?: number;
+  BikeFlag?: number;
+  DailyFlag?: number;
+  Note?: string;
+}
+
+/**
+ * 每日時刻表 (v3 API)
  */
 export interface DailyTrainTimetable {
-  TrainDate: string;
-  DailyTrainInfo: {
-    TrainNo: string;
-    Direction: number;
-    TrainTypeName: {
-      Zh_tw: string;
-      En: string;
-    };
-    StartingStationName: {
-      Zh_tw: string;
-      En: string;
-    };
-    EndingStationName: {
-      Zh_tw: string;
-      En: string;
-    };
-  };
+  TrainDate?: string;
+  TrainInfo: TrainInfo;
   StopTimes: StopTime[];
 }
 
 /**
- * 車次一般時刻表
+ * 車次一般時刻表 (v3 API)
  */
 export interface GeneralTrainTimetable {
-  TrainInfo: {
-    TrainNo: string;
-    Direction: number;
-    TrainTypeName: {
-      Zh_tw: string;
-      En: string;
-    };
-    StartingStationName: {
-      Zh_tw: string;
-      En: string;
-    };
-    EndingStationName: {
-      Zh_tw: string;
-      En: string;
-    };
-  };
+  TrainInfo: TrainInfo;
   StopTimes: StopTime[];
 }
 
@@ -135,4 +138,50 @@ export interface ODFare {
 export interface TDXError {
   message: string;
   statusCode?: number;
+}
+
+/**
+ * TDX API 回應包裝
+ */
+export interface TDXResponse<T> {
+  UpdateTime: string;
+  UpdateInterval: number;
+  SrcUpdateTime: string;
+  SrcUpdateInterval: number;
+}
+
+/**
+ * 每日時刻表 API 回應
+ */
+export interface DailyTimetableResponse extends TDXResponse<DailyTrainTimetable[]> {
+  TrainDate: string;
+  TrainTimetables: DailyTrainTimetable[];
+}
+
+/**
+ * 車次時刻表 API 回應
+ */
+export interface GeneralTimetableResponse extends TDXResponse<GeneralTrainTimetable[]> {
+  TrainTimetables: GeneralTrainTimetable[];
+}
+
+/**
+ * 即時位置 API 回應
+ */
+export interface TrainLiveBoardResponse extends TDXResponse<TrainLiveBoard[]> {
+  TrainLiveBoards: TrainLiveBoard[];
+}
+
+/**
+ * 延誤資訊 API 回應
+ */
+export interface TrainDelayResponse extends TDXResponse<TrainDelay[]> {
+  TrainDelays: TrainDelay[];
+}
+
+/**
+ * 票價 API 回應
+ */
+export interface ODFareResponse extends TDXResponse<ODFare[]> {
+  ODFares: ODFare[];
 }
