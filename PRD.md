@@ -928,7 +928,7 @@ describe('StationResolver', () => {
 
 **Implementation**:
 - [x] PRD
-- [ ] Project setup (TypeScript, Commander, Bun, Vitest)
+- [x] Project setup (TypeScript, Commander, Bun, Vitest)
 - [ ] Station resolver module (from n8n workflow)
   - [ ] Embedded station data (220+ stations with coordinates)
   - [ ] Name correction table

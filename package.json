@@ -1,0 +1,46 @@
+{
+  "name": "tdx-rail-tra-cli",
+  "version": "0.1.0",
+  "description": "Taiwan Railway (TRA) CLI tool powered by TDX API",
+  "type": "module",
+  "bin": {
+    "tra": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "conf": "^13.0.1",
+    "dotenv": "^16.4.7",
+    "ofetch": "^1.4.1",
+    "cli-table3": "^0.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "@vitest/coverage-v8": "^2.1.8",
+    "msw": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "taiwan",
+    "railway",
+    "tra",
+    "tdx",
+    "cli",
+    "timetable"
+  ],
+  "author": "",
+  "license": "MIT"
+}
