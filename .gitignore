@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+
+# Cache
+.cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+
+# Reference files (contains sensitive workflow data)
+n8n-ttca.json
