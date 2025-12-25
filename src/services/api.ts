@@ -12,11 +12,19 @@ import type {
   TrainLiveBoard,
   TrainDelay,
   ODFare,
+  StationLiveBoard,
+  Line,
+  StationOfLine,
+  DailyStationTimetable,
   DailyTimetableResponse,
   GeneralTimetableResponse,
   TrainLiveBoardResponse,
   TrainDelayResponse,
   ODFareResponse,
+  StationLiveBoardResponse,
+  LineResponse,
+  StationOfLineResponse,
+  DailyStationTimetableResponse,
 } from '../types/api.js';
 
 const API_BASE = 'https://tdx.transportdata.tw/api/basic';
@@ -25,6 +33,7 @@ const API_BASE = 'https://tdx.transportdata.tw/api/basic';
 const CACHE_TTL = {
   TIMETABLE: 4 * 60 * 60 * 1000, // 4 小時
   FARE: 7 * 24 * 60 * 60 * 1000, // 7 天（票價不常變動）
+  STATIC: 24 * 60 * 60 * 1000, // 24 小時（路線等靜態資料）
 };
 
 export interface ApiOptions {
@@ -158,6 +167,105 @@ export class TDXApiClient {
     this.cache.set(cacheKey, fares[0], CACHE_TTL.FARE);
 
     return fares[0];
+  }
+
+  /**
+   * 取得車站即時看板
+   * 注意：即時資料不快取
+   */
+  async getStationLiveBoard(stationId: string): Promise<StationLiveBoard[]> {
+    const url = `${API_BASE}/v3/Rail/TRA/StationLiveBoard/Station/${stationId}`;
+    const response = await this.request<StationLiveBoardResponse>(url);
+    return response.StationLiveBoards ?? [];
+  }
+
+  /**
+   * 取得車站每日時刻表
+   */
+  async getStationTimetable(
+    stationId: string,
+    date: string,
+    direction?: 0 | 1,
+    options: ApiOptions = {}
+  ): Promise<DailyStationTimetable[]> {
+    const cacheKey = `timetable/station-${stationId}-${date}${direction !== undefined ? `-${direction}` : ''}`;
+
+    // 檢查快取
+    if (!options.skipCache) {
+      const cached = this.cache.get<DailyStationTimetable[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    let url = `${API_BASE}/v3/Rail/TRA/DailyStationTimetable/Station/${stationId}/${date}`;
+
+    const query: Record<string, string> = {};
+    if (direction !== undefined) {
+      query['$filter'] = `Direction eq ${direction}`;
+    }
+
+    const response = await this.request<DailyStationTimetableResponse>(url, Object.keys(query).length > 0 ? query : undefined);
+    const result = response.StationTimetables ?? [];
+
+    // 儲存快取
+    this.cache.set(cacheKey, result, CACHE_TTL.TIMETABLE);
+
+    return result;
+  }
+
+  /**
+   * 取得所有路線
+   */
+  async getLines(options: ApiOptions = {}): Promise<Line[]> {
+    const cacheKey = 'lines/all';
+
+    // 檢查快取
+    if (!options.skipCache) {
+      const cached = this.cache.get<Line[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const url = `${API_BASE}/v3/Rail/TRA/Line`;
+    const response = await this.request<LineResponse>(url);
+    const result = response.Lines ?? [];
+
+    // 儲存快取
+    this.cache.set(cacheKey, result, CACHE_TTL.STATIC);
+
+    return result;
+  }
+
+  /**
+   * 取得路線車站
+   */
+  async getStationsOfLine(lineId: string, options: ApiOptions = {}): Promise<StationOfLine | null> {
+    const cacheKey = `lines/stations-${lineId}`;
+
+    // 檢查快取
+    if (!options.skipCache) {
+      const cached = this.cache.get<StationOfLine>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const url = `${API_BASE}/v3/Rail/TRA/StationOfLine`;
+    const response = await this.request<StationOfLineResponse>(url, {
+      '$filter': `LineID eq '${lineId}'`,
+    });
+    const stationOfLines = response.StationOfLines ?? [];
+
+    if (stationOfLines.length === 0) {
+      return null;
+    }
+
+    // 儲存快取
+    this.cache.set(cacheKey, stationOfLines[0], CACHE_TTL.STATIC);
+
+    return stationOfLines[0];
   }
 
   /**

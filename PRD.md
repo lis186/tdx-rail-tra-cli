@@ -1053,18 +1053,18 @@ describe('StationResolver', () => {
 ### Phase 3: Extended Features
 
 **Tests First**:
-- [ ] Station liveboard tests (`tests/commands/live-station.test.ts`)
-- [ ] Station timetable tests (`tests/commands/timetable-station.test.ts`)
-- [ ] Lines command tests (`tests/commands/lines.test.ts`)
+- [x] Station liveboard tests (`tests/commands/live-station.test.ts`) - 6 tests
+- [x] Station timetable tests (`tests/commands/timetable-station.test.ts`) - 6 tests
+- [x] Lines command tests (`tests/commands/lines.test.ts`) - 11 tests
 - [ ] Output formatter tests (`tests/utils/output.test.ts`)
   - [ ] Table format tests
   - [ ] CSV format tests
   - [ ] JSON format tests
 
 **Implementation**:
-- [ ] `tra live station` command
-- [ ] `tra timetable station` command
-- [ ] `tra lines` commands
+- [x] `tra live station` command
+- [x] `tra timetable station` command
+- [x] `tra lines` commands (list, get, stations)
 - [ ] Watch mode (`--watch`)
 - [ ] Table output format
 

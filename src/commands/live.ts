@@ -12,7 +12,7 @@ import {
   STATION_NICKNAMES,
   STATION_CORRECTIONS,
 } from '../data/stations.js';
-import type { TrainLiveBoard, TrainDelay } from '../types/api.js';
+import type { TrainLiveBoard, TrainDelay, StationLiveBoard } from '../types/api.js';
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -201,6 +201,138 @@ function printLiveBoard(liveBoard: TrainLiveBoard): void {
   console.log(`目前位置：${liveBoard.StationName.Zh_tw}`);
   console.log(`延誤狀態：${formatDelayStatus(liveBoard.DelayTime)}`);
   console.log(`更新時間：${liveBoard.UpdateTime}`);
+}
+
+/**
+ * tra live station <station>
+ */
+liveCommand
+  .command('station <station>')
+  .description('查詢車站即時到離站資訊')
+  .option('--direction <dir>', '方向篩選：0=順行（南下）、1=逆行（北上）')
+  .option('--limit <number>', '限制顯示數量', '20')
+  .action(async (station, options, cmd) => {
+    const format = cmd.optsWithGlobals().format || 'json';
+
+    // 解析車站
+    const result = resolver.resolve(station);
+    if (!result.success) {
+      if (format === 'json') {
+        console.log(JSON.stringify({ success: false, error: result.error }));
+      } else {
+        console.error(`錯誤：無法解析車站「${station}」`);
+        if (result.error.suggestion) {
+          console.error(`建議：${result.error.suggestion}`);
+        }
+      }
+      process.exit(1);
+    }
+
+    const stationInfo = result.station;
+
+    try {
+      const api = getApiClient();
+      let liveBoards = await api.getStationLiveBoard(stationInfo.id);
+
+      // 方向篩選
+      if (options.direction !== undefined) {
+        const dir = parseInt(options.direction, 10);
+        if (dir === 0 || dir === 1) {
+          liveBoards = liveBoards.filter((board) => board.Direction === dir);
+        }
+      }
+
+      // 限制數量
+      const limit = parseInt(options.limit, 10);
+      if (limit > 0 && liveBoards.length > limit) {
+        liveBoards = liveBoards.slice(0, limit);
+      }
+
+      if (format === 'json') {
+        console.log(JSON.stringify({
+          success: true,
+          station: stationInfo,
+          count: liveBoards.length,
+          liveBoards: liveBoards.map(formatStationLiveBoardForJson),
+        }, null, 2));
+      } else {
+        printStationLiveBoard(stationInfo, liveBoards);
+      }
+    } catch (error) {
+      if (format === 'json') {
+        console.log(JSON.stringify({
+          success: false,
+          error: {
+            code: 'API_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }));
+      } else {
+        console.error(`查詢失敗：${error instanceof Error ? error.message : String(error)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+/**
+ * 格式化車站即時看板為 JSON 輸出
+ */
+function formatStationLiveBoardForJson(board: StationLiveBoard): {
+  trainNo: string;
+  trainType: string;
+  endingStation: string;
+  direction: string;
+  arrivalTime: string | null;
+  departureTime: string | null;
+  delayTime: number;
+  delayStatus: string;
+  platform: string | null;
+  updateTime: string;
+} {
+  return {
+    trainNo: board.TrainNo,
+    trainType: board.TrainTypeName.Zh_tw,
+    endingStation: board.EndingStationName.Zh_tw,
+    direction: board.Direction === 0 ? '順行' : '逆行',
+    arrivalTime: board.ScheduledArrivalTime || null,
+    departureTime: board.ScheduledDepartureTime || null,
+    delayTime: board.DelayTime,
+    delayStatus: formatDelayStatus(board.DelayTime),
+    platform: board.Platform || null,
+    updateTime: board.UpdateTime,
+  };
+}
+
+/**
+ * 印出車站即時看板
+ */
+function printStationLiveBoard(
+  station: { name: string; id: string },
+  liveBoards: StationLiveBoard[]
+): void {
+  console.log(`\n${station.name} 即時到離站資訊\n`);
+
+  if (liveBoards.length === 0) {
+    console.log('目前無列車資訊');
+    return;
+  }
+
+  console.log('車次\t車種\t\t終點站\t\t到站\t\t發車\t\t狀態');
+  console.log('─'.repeat(80));
+
+  for (const board of liveBoards) {
+    const trainType = board.TrainTypeName.Zh_tw.padEnd(6, '　');
+    const endStation = board.EndingStationName.Zh_tw.padEnd(4, '　');
+    const arrival = board.ScheduledArrivalTime || '--:--';
+    const departure = board.ScheduledDepartureTime || '--:--';
+    const status = formatDelayStatus(board.DelayTime);
+
+    console.log(
+      `${board.TrainNo}\t${trainType}\t\t${endStation}\t\t${arrival}\t\t${departure}\t\t${status}`
+    );
+  }
+
+  console.log(`\n共 ${liveBoards.length} 班次`);
 }
 
 /**

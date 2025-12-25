@@ -5,6 +5,7 @@ import { tpassCommand } from './commands/tpass.js';
 import { fareCommand } from './commands/fare.js';
 import { liveCommand } from './commands/live.js';
 import { bookCommand } from './commands/book.js';
+import { linesCommand } from './commands/lines.js';
 
 export const cli = new Command();
 
@@ -26,3 +27,4 @@ cli.addCommand(tpassCommand);
 cli.addCommand(fareCommand);
 cli.addCommand(liveCommand);
 cli.addCommand(bookCommand);
+cli.addCommand(linesCommand);

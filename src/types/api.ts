@@ -185,3 +185,115 @@ export interface TrainDelayResponse extends TDXResponse<TrainDelay[]> {
 export interface ODFareResponse extends TDXResponse<ODFare[]> {
   ODFares: ODFare[];
 }
+
+/**
+ * 車站即時看板（到離站資訊）
+ */
+export interface StationLiveBoard {
+  StationID: string;
+  StationName: {
+    Zh_tw: string;
+    En: string;
+  };
+  TrainNo: string;
+  TrainTypeName: {
+    Zh_tw: string;
+    En: string;
+  };
+  EndingStationName: {
+    Zh_tw: string;
+    En: string;
+  };
+  Direction: number;
+  ScheduledDepartureTime?: string;
+  ScheduledArrivalTime?: string;
+  DelayTime: number;
+  Platform?: string;
+  UpdateTime: string;
+}
+
+/**
+ * 車站即時看板 API 回應
+ */
+export interface StationLiveBoardResponse extends TDXResponse<StationLiveBoard[]> {
+  StationLiveBoards: StationLiveBoard[];
+}
+
+/**
+ * 路線基本資料
+ */
+export interface Line {
+  LineID: string;
+  LineName: {
+    Zh_tw: string;
+    En: string;
+  };
+  LineSectionName?: {
+    Zh_tw: string;
+    En: string;
+  };
+  IsBranch?: boolean;
+}
+
+/**
+ * 路線 API 回應
+ */
+export interface LineResponse extends TDXResponse<Line[]> {
+  Lines: Line[];
+}
+
+/**
+ * 路線車站資料
+ */
+export interface StationOfLine {
+  LineID: string;
+  Stations: Array<{
+    Sequence: number;
+    StationID: string;
+    StationName: {
+      Zh_tw: string;
+      En: string;
+    };
+    CumulativeDistance?: number;
+  }>;
+}
+
+/**
+ * 路線車站 API 回應
+ */
+export interface StationOfLineResponse extends TDXResponse<StationOfLine[]> {
+  StationOfLines: StationOfLine[];
+}
+
+/**
+ * 車站每日時刻表
+ */
+export interface DailyStationTimetable {
+  TrainDate: string;
+  StationID: string;
+  StationName: {
+    Zh_tw: string;
+    En: string;
+  };
+  Direction: number;
+  TimeTables: Array<{
+    TrainNo: string;
+    TrainTypeName: {
+      Zh_tw: string;
+      En: string;
+    };
+    EndingStationName: {
+      Zh_tw: string;
+      En: string;
+    };
+    ArrivalTime?: string;
+    DepartureTime?: string;
+  }>;
+}
+
+/**
+ * 車站每日時刻表 API 回應
+ */
+export interface DailyStationTimetableResponse extends TDXResponse<DailyStationTimetable[]> {
+  StationTimetables: DailyStationTimetable[];
+}

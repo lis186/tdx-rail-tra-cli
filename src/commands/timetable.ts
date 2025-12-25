@@ -16,7 +16,7 @@ import {
   checkTpassEligibility,
   isTpassEligibleTrainType,
 } from '../lib/tpass.js';
-import type { DailyTrainTimetable, GeneralTrainTimetable } from '../types/api.js';
+import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable } from '../types/api.js';
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -245,6 +245,167 @@ timetableCommand
       process.exit(1);
     }
   });
+
+/**
+ * tra timetable station <station> [date]
+ */
+timetableCommand
+  .command('station <station> [date]')
+  .description('查詢車站每日時刻表')
+  .option('--direction <dir>', '方向篩選：0=順行（南下）、1=逆行（北上）')
+  .option('--after <time>', '只顯示指定時間之後的班次 (HH:MM)')
+  .option('--limit <number>', '限制顯示班次數量', '30')
+  .option('--no-cache', '不使用快取')
+  .action(async (station, date, options, cmd) => {
+    const format = cmd.optsWithGlobals().format || 'json';
+    const queryDate = date || getToday();
+
+    // 解析車站
+    const result = resolver.resolve(station);
+    if (!result.success) {
+      if (format === 'json') {
+        console.log(JSON.stringify({ success: false, error: result.error }));
+      } else {
+        console.error(`錯誤：無法解析車站「${station}」`);
+        if (result.error.suggestion) {
+          console.error(`建議：${result.error.suggestion}`);
+        }
+      }
+      process.exit(1);
+    }
+
+    const stationInfo = result.station;
+    const direction = options.direction !== undefined
+      ? parseInt(options.direction, 10) as 0 | 1
+      : undefined;
+
+    try {
+      const api = getApiClient();
+      const timetables = await api.getStationTimetable(
+        stationInfo.id,
+        queryDate,
+        direction,
+        { skipCache: !options.cache }
+      );
+
+      // 合併並篩選時刻表
+      let allTrains: Array<{
+        trainNo: string;
+        trainType: string;
+        endingStation: string;
+        direction: number;
+        arrival: string | null;
+        departure: string | null;
+      }> = [];
+
+      for (const timetable of timetables) {
+        for (const train of timetable.TimeTables) {
+          allTrains.push({
+            trainNo: train.TrainNo,
+            trainType: train.TrainTypeName.Zh_tw,
+            endingStation: train.EndingStationName.Zh_tw,
+            direction: timetable.Direction,
+            arrival: train.ArrivalTime || null,
+            departure: train.DepartureTime || null,
+          });
+        }
+      }
+
+      // 過濾時間
+      if (options.after) {
+        allTrains = allTrains.filter((train) => {
+          const time = train.departure || train.arrival;
+          if (!time) return false;
+          return time >= options.after;
+        });
+      }
+
+      // 依時間排序
+      allTrains.sort((a, b) => {
+        const aTime = a.departure || a.arrival || '';
+        const bTime = b.departure || b.arrival || '';
+        return aTime.localeCompare(bTime);
+      });
+
+      // 限制數量
+      const limit = parseInt(options.limit, 10);
+      if (limit > 0 && allTrains.length > limit) {
+        allTrains = allTrains.slice(0, limit);
+      }
+
+      if (format === 'json') {
+        console.log(JSON.stringify({
+          success: true,
+          query: {
+            station: stationInfo,
+            date: queryDate,
+            direction: direction !== undefined ? (direction === 0 ? '順行' : '逆行') : 'all',
+          },
+          count: allTrains.length,
+          timetables: allTrains,
+        }, null, 2));
+      } else {
+        printStationTimetableTable(stationInfo, queryDate, allTrains, direction);
+      }
+    } catch (error) {
+      if (format === 'json') {
+        console.log(JSON.stringify({
+          success: false,
+          error: {
+            code: 'API_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }));
+      } else {
+        console.error(`查詢失敗：${error instanceof Error ? error.message : String(error)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+/**
+ * 印出車站時刻表表格
+ */
+function printStationTimetableTable(
+  station: { name: string; id: string },
+  date: string,
+  trains: Array<{
+    trainNo: string;
+    trainType: string;
+    endingStation: string;
+    direction: number;
+    arrival: string | null;
+    departure: string | null;
+  }>,
+  direction?: 0 | 1
+): void {
+  const directionText = direction !== undefined
+    ? `（${direction === 0 ? '順行/南下' : '逆行/北上'}）`
+    : '';
+  console.log(`\n${station.name} 時刻表 (${date})${directionText}\n`);
+
+  if (trains.length === 0) {
+    console.log('沒有找到班次');
+    return;
+  }
+
+  console.log('車次\t車種\t\t終點站\t\t到站\t\t發車\t\t方向');
+  console.log('─'.repeat(80));
+
+  for (const train of trains) {
+    const trainType = train.trainType.padEnd(6, '　');
+    const endStation = train.endingStation.padEnd(4, '　');
+    const arrival = train.arrival || '--:--';
+    const departure = train.departure || '--:--';
+    const dirText = train.direction === 0 ? '↓南' : '↑北';
+
+    console.log(
+      `${train.trainNo}\t${trainType}\t\t${endStation}\t\t${arrival}\t\t${departure}\t\t${dirText}`
+    );
+  }
+
+  console.log(`\n共 ${trains.length} 班次`);
+}
 
 /**
  * 格式化時刻表為 JSON 輸出
