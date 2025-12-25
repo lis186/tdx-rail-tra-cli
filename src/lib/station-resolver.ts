@@ -55,8 +55,14 @@ export class StationResolver {
 
     // 2. 暱稱對應
     if (this.nicknames[trimmed]) {
-      const stationId = this.nicknames[trimmed];
-      const station = this.stationById.get(stationId);
+      const target = this.nicknames[trimmed];
+      // 嘗試作為 ID 查找
+      let station = this.stationById.get(target);
+      if (station) {
+        return { success: true, station, confidence: 'exact' };
+      }
+      // 嘗試作為名稱查找
+      station = this.stationByName.get(target);
       if (station) {
         return { success: true, station, confidence: 'exact' };
       }

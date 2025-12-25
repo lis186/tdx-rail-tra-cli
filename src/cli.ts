@@ -2,6 +2,9 @@ import { Command } from 'commander';
 import { stationsCommand } from './commands/stations.js';
 import { timetableCommand } from './commands/timetable.js';
 import { tpassCommand } from './commands/tpass.js';
+import { fareCommand } from './commands/fare.js';
+import { liveCommand } from './commands/live.js';
+import { bookCommand } from './commands/book.js';
 
 export const cli = new Command();
 
@@ -20,3 +23,6 @@ cli
 cli.addCommand(stationsCommand);
 cli.addCommand(timetableCommand);
 cli.addCommand(tpassCommand);
+cli.addCommand(fareCommand);
+cli.addCommand(liveCommand);
+cli.addCommand(bookCommand);

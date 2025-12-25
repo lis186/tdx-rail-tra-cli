@@ -1035,17 +1035,17 @@ describe('StationResolver', () => {
   - [ ] `adjustTimeWithDelay` tests
   - [ ] `formatDelayStatus` tests
 - [ ] OData builder tests (`tests/lib/odata.test.ts`)
-- [ ] Fare command tests (`tests/commands/fare.test.ts`)
-- [ ] Live command tests (`tests/commands/live.test.ts`)
-- [ ] Book command tests (`tests/commands/book.test.ts`)
+- [x] Fare command tests (`tests/commands/fare.test.ts`)
+- [x] Live command tests (`tests/commands/live.test.ts`)
+- [x] Book command tests (`tests/commands/book.test.ts`)
 
 **Implementation**:
-- [ ] `tra fare` command
-- [ ] `tra live train` command
-- [ ] `tra live delays` command
-- [ ] `tra book` command (訂票連結生成)
+- [x] `tra fare` command
+- [x] `tra live train` command
+- [x] `tra live delays` command
+- [x] `tra book` command (訂票連結生成)
 - [ ] OData filter builder
-- [ ] Timetable caching (5.5h TTL)
+- [x] Timetable caching (4h TTL)
 
 **Deliverable**: 完整的查詢與訂票功能，與 n8n workflow 功能對等（測試覆蓋率 >80%）
 
