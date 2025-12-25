@@ -1029,12 +1029,12 @@ describe('StationResolver', () => {
 ### Phase 2: Core Features
 
 **Tests First**:
-- [ ] Time utils tests (`tests/lib/time-utils.test.ts`)
-  - [ ] `calculateRemainingMinutes` tests (normal, cross-midnight, delayed)
-  - [ ] `formatRemainingTime` tests
-  - [ ] `adjustTimeWithDelay` tests
-  - [ ] `formatDelayStatus` tests
-- [ ] OData builder tests (`tests/lib/odata.test.ts`)
+- [x] Time utils tests (`tests/lib/time-utils.test.ts`) - 48 tests
+  - [x] `calculateRemainingMinutes` tests (normal, cross-midnight, delayed)
+  - [x] `formatRemainingTime` tests
+  - [x] `adjustTimeWithDelay` tests
+  - [x] `formatDelayStatus` tests
+- [x] OData builder tests (`tests/lib/odata.test.ts`) - 36 tests
 - [x] Fare command tests (`tests/commands/fare.test.ts`)
 - [x] Live command tests (`tests/commands/live.test.ts`)
 - [x] Book command tests (`tests/commands/book.test.ts`)
@@ -1044,7 +1044,8 @@ describe('StationResolver', () => {
 - [x] `tra live train` command
 - [x] `tra live delays` command
 - [x] `tra book` command (訂票連結生成)
-- [ ] OData filter builder
+- [x] OData filter builder (`src/lib/odata.ts`)
+- [x] Time utils module (`src/lib/time-utils.ts`)
 - [x] Timetable caching (4h TTL)
 
 **Deliverable**: 完整的查詢與訂票功能，與 n8n workflow 功能對等（測試覆蓋率 >80%）
