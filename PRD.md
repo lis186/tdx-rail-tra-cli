@@ -936,7 +936,7 @@ describe('StationResolver', () => {
 - [x] Config management (`tra config`)
 - [x] Auth service (OAuth2 token)
 - [x] Basic API client with error handling
-- [ ] `tra stations` command
+- [x] `tra stations` command
 - [ ] `tra timetable daily` command
 - [ ] `tra timetable train` command
 - [x] Cache infrastructure
