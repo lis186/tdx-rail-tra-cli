@@ -913,14 +913,14 @@ describe('StationResolver', () => {
 ### Phase 1: Foundation (MVP) ⭐
 
 **Tests First**:
-- [ ] Station resolver tests (`tests/lib/station-resolver.test.ts`)
-  - [ ] ID lookup tests
-  - [ ] Name correction tests
-  - [ ] Variant character tests (台/臺)
-  - [ ] Nickname resolution tests
-  - [ ] Fuzzy search tests (Levenshtein)
-  - [ ] Error response tests
-- [ ] Fuzzy search tests (`tests/lib/fuzzy.test.ts`)
+- [x] Station resolver tests (`tests/lib/station-resolver.test.ts`)
+  - [x] ID lookup tests
+  - [x] Name correction tests
+  - [x] Variant character tests (台/臺)
+  - [x] Nickname resolution tests
+  - [x] Fuzzy search tests (Levenshtein)
+  - [x] Error response tests
+- [x] Fuzzy search tests (`tests/lib/fuzzy.test.ts`)
 - [ ] Config service tests (`tests/services/config.test.ts`)
 - [ ] Auth service tests (`tests/services/auth.test.ts`)
 - [ ] API client tests (`tests/services/api.test.ts`)
@@ -929,10 +929,10 @@ describe('StationResolver', () => {
 **Implementation**:
 - [x] PRD
 - [x] Project setup (TypeScript, Commander, Bun, Vitest)
-- [ ] Station resolver module (from n8n workflow)
+- [x] Station resolver module (from n8n workflow)
   - [ ] Embedded station data (220+ stations with coordinates)
-  - [ ] Name correction table
-  - [ ] Fuzzy search (Levenshtein)
+  - [x] Name correction table
+  - [x] Fuzzy search (Levenshtein)
 - [ ] Config management (`tra config`)
 - [ ] Auth service (OAuth2 token)
 - [ ] Basic API client with error handling
