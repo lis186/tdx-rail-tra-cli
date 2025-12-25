@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { stationsCommand } from './commands/stations.js';
+import { timetableCommand } from './commands/timetable.js';
 
 export const cli = new Command();
 
@@ -16,3 +17,4 @@ cli
 
 // 註冊指令
 cli.addCommand(stationsCommand);
+cli.addCommand(timetableCommand);

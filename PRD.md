@@ -937,8 +937,8 @@ describe('StationResolver', () => {
 - [x] Auth service (OAuth2 token)
 - [x] Basic API client with error handling
 - [x] `tra stations` command
-- [ ] `tra timetable daily` command
-- [ ] `tra timetable train` command
+- [x] `tra timetable daily` command
+- [x] `tra timetable train` command
 - [x] Cache infrastructure
 
 **Deliverable**: 可查詢車站、每日時刻表、車次時刻表（測試覆蓋率 >80%）
