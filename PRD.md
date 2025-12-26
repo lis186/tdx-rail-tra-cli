@@ -1513,18 +1513,128 @@ tra journey <from> <to> [options]
 ```
 
 **Tests First**:
-- [ ] Journey planner algorithm tests
-- [ ] Transfer station detection tests
-- [ ] Transfer time calculation tests
-- [ ] Multi-segment journey sorting tests
+- [x] Journey planner algorithm tests
+- [x] Transfer station detection tests
+- [x] Transfer time calculation tests
+- [x] Multi-segment journey sorting tests
 
 **Implementation**:
-- [ ] `tra journey` command
-- [ ] Journey planner service
-- [ ] Transfer station data
-- [ ] Transfer time calculation
+- [x] `tra journey` command
+- [x] Journey planner service (`src/lib/journey-planner.ts`)
+- [x] Transfer station data (18 major stations)
+- [x] Transfer time calculation
 
-**Deliverable**: 轉乘規劃功能，自動計算最佳轉乘方案
+**Deliverable**: 轉乘規劃功能，自動計算最佳轉乘方案 ✅
+
+---
+
+#### Cross-region TPASS Fare Calculation (跨區 TPASS 票價計算)
+
+**目標**: 當使用者有 TPASS 月票但需跨區旅行時，計算最省錢的轉乘方案
+
+**問題情境**:
+- 使用者持有「基北北桃」TPASS（1200元/月）
+- 想從台北到新竹（跨區）
+- 直接購票 160 元 vs 善用 TPASS 可省多少？
+
+**新增指令**:
+
+```bash
+# 跨區 TPASS 票價計算
+tra tpass fare <from> <to> [options]
+
+# Options:
+--region <region>           # 指定持有的 TPASS 區域（自動偵測起站所屬區域）
+--include-transfers         # 包含需轉乘的方案
+```
+
+**輸出範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "from": "台北",
+    "to": "新竹",
+    "tpassRegion": "基北北桃",
+    "crossRegion": true,
+    "options": [
+      {
+        "type": "direct",
+        "description": "直接購票",
+        "fare": 160,
+        "savings": 0
+      },
+      {
+        "type": "tpass_partial",
+        "description": "TPASS 到中壢，購票到新竹",
+        "transferStation": "中壢",
+        "tpassSegment": { "from": "台北", "to": "中壢", "fare": 0 },
+        "paidSegment": { "from": "中壢", "to": "新竹", "fare": 52 },
+        "totalFare": 52,
+        "savings": 108,
+        "recommended": true
+      },
+      {
+        "type": "tpass_partial",
+        "description": "TPASS 到桃園，購票到新竹",
+        "transferStation": "桃園",
+        "tpassSegment": { "from": "台北", "to": "桃園", "fare": 0 },
+        "paidSegment": { "from": "桃園", "to": "新竹", "fare": 68 },
+        "totalFare": 68,
+        "savings": 92
+      }
+    ]
+  }
+}
+```
+
+**Table 輸出範例**:
+
+```
+台北 → 新竹（跨區 TPASS 票價比較）
+持有月票：基北北桃 (NT$1200/月)
+
+┌──────┬──────────────────────────────────┬──────────┬────────┐
+│ 推薦 │ 方案                             │ 票價     │ 省下   │
+├──────┼──────────────────────────────────┼──────────┼────────┤
+│ ⭐   │ TPASS 到中壢 + 購票到新竹        │ NT$52    │ NT$108 │
+│      │ TPASS 到桃園 + 購票到新竹        │ NT$68    │ NT$92  │
+│      │ 直接購票                         │ NT$160   │ -      │
+└──────┴──────────────────────────────────┴──────────┴────────┘
+```
+
+**邊界站偵測邏輯**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ TPASS Boundary Station Detection                            │
+├─────────────────────────────────────────────────────────────┤
+│ 1. 取得起站所屬 TPASS 區域的所有車站                         │
+│                                                              │
+│ 2. 找出該區域與目的地方向的邊界站：                          │
+│    - 取路線順序最接近目的地的區域內車站                      │
+│    - 例：基北北桃往新竹方向 → 中壢是最遠邊界站               │
+│                                                              │
+│ 3. 計算各邊界站方案的總票價：                                │
+│    - TPASS 區間內：0 元                                      │
+│    - 區間外：查詢 fare API                                   │
+│                                                              │
+│ 4. 依總票價排序，標記最省方案                                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Tests First**:
+- [ ] Boundary station detection tests
+- [ ] Cross-region fare calculation tests
+- [ ] Optimal transfer point selection tests
+- [ ] Multiple TPASS regions comparison tests
+
+**Implementation**:
+- [ ] `tra tpass fare` command
+- [ ] Boundary station detector
+- [ ] Cross-region fare calculator
+- [ ] TPASS region boundary data
 
 ---
 

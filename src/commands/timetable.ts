@@ -16,6 +16,14 @@ import {
   checkTpassEligibility,
   isTpassEligibleTrainType,
 } from '../lib/tpass.js';
+import {
+  filterByTimeRange,
+  filterByTrainType,
+  filterByServices,
+  sortTrains,
+  parseTrainTypeInput,
+  type TrainEntry,
+} from '../lib/train-filter.js';
 import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable } from '../types/api.js';
 
 // 初始化
@@ -56,9 +64,17 @@ export const timetableCommand = new Command('timetable')
 timetableCommand
   .command('daily <from> <to> [date]')
   .description('查詢起訖站每日時刻表')
-  .option('--after <time>', '只顯示指定時間之後的班次 (HH:MM)')
-  .option('--limit <number>', '限制顯示班次數量', '20')
+  .option('--depart-after <time>', '出發時間不早於 (HH:MM)')
+  .option('--depart-before <time>', '出發時間不晚於 (HH:MM)')
+  .option('--arrive-by <time>', '抵達時間不晚於 (HH:MM)')
+  .option('--after <time>', '只顯示指定時間之後的班次 (HH:MM) [已棄用，請用 --depart-after]')
+  .option('-t, --type <types>', '篩選車種（逗號分隔）')
+  .option('--exclude-type <types>', '排除車種（逗號分隔）')
   .option('--tpass', '僅顯示 TPASS 適用班次')
+  .option('--bike', '僅顯示可攜帶自行車班次')
+  .option('--wheelchair', '僅顯示有輪椅服務班次')
+  .option('--sort <field>', '排序方式：departure|arrival|duration|fare', 'departure')
+  .option('--limit <number>', '限制顯示班次數量', '20')
   .option('--no-cache', '不使用快取')
   .action(async (from, to, date, options, cmd) => {
     const format = cmd.optsWithGlobals().format || 'json';
@@ -127,41 +143,65 @@ timetableCommand
 
     try {
       const api = getApiClient();
-      let timetables = await api.getDailyTimetable(
+      const timetables = await api.getDailyTimetable(
         fromStation.id,
         toStation.id,
         queryDate,
         { skipCache: !options.cache }
       );
 
-      // 過濾時間
-      if (options.after) {
-        timetables = timetables.filter((train) => {
-          const firstStop = train.StopTimes.find((s) => s.StationID === fromStation.id);
-          if (!firstStop?.DepartureTime) return false;
-          return firstStop.DepartureTime >= options.after;
-        });
-      }
-
-      // 過濾 TPASS 不適用車種
-      if (options.tpass) {
-        timetables = timetables.filter((train) =>
-          isTpassEligibleTrainType(train.TrainInfo.TrainTypeName.Zh_tw)
-        );
-      }
-
-      // 限制數量
-      const limit = parseInt(options.limit, 10);
-      if (limit > 0 && timetables.length > limit) {
-        timetables = timetables.slice(0, limit);
-      }
-
-      // 排序：依出發時間
-      timetables.sort((a, b) => {
-        const aTime = a.StopTimes.find((s) => s.StationID === fromStation.id)?.DepartureTime || '';
-        const bTime = b.StopTimes.find((s) => s.StationID === fromStation.id)?.DepartureTime || '';
-        return aTime.localeCompare(bTime);
+      // Convert to TrainEntry format for filtering
+      let trainEntries: TrainEntry[] = timetables.map((train) => {
+        const fromStop = train.StopTimes.find((s) => s.StationID === fromStation.id);
+        const toStop = train.StopTimes.find((s) => s.StationID === toStation.id);
+        return {
+          trainNo: train.TrainInfo.TrainNo,
+          trainType: train.TrainInfo.TrainTypeName.Zh_tw,
+          trainTypeCode: train.TrainInfo.TrainTypeCode,
+          departure: fromStop?.DepartureTime || '',
+          arrival: toStop?.ArrivalTime || '',
+          bikeFlag: train.TrainInfo.BikeFlag,
+          wheelChairFlag: train.TrainInfo.WheelChairFlag,
+          // Keep reference to original for output
+          _original: train,
+        } as TrainEntry & { _original: DailyTrainTimetable };
       });
+
+      // Apply time range filters (support legacy --after option)
+      const departAfter = options.departAfter || options.after;
+      trainEntries = filterByTimeRange(trainEntries, {
+        departAfter,
+        departBefore: options.departBefore,
+        arriveBy: options.arriveBy,
+      });
+
+      // Apply train type filters
+      trainEntries = filterByTrainType(trainEntries, {
+        includeTypes: options.type ? parseTrainTypeInput(options.type) : undefined,
+        excludeTypes: options.excludeType ? parseTrainTypeInput(options.excludeType) : undefined,
+        tpassOnly: options.tpass,
+      });
+
+      // Apply service filters
+      trainEntries = filterByServices(trainEntries, {
+        bikeOnly: options.bike,
+        wheelchairOnly: options.wheelchair,
+      });
+
+      // Sort
+      const sortField = options.sort as 'departure' | 'arrival' | 'duration' | 'fare';
+      trainEntries = sortTrains(trainEntries, sortField);
+
+      // Limit
+      const limit = parseInt(options.limit, 10);
+      if (limit > 0 && trainEntries.length > limit) {
+        trainEntries = trainEntries.slice(0, limit);
+      }
+
+      // Get filtered original timetables for output
+      const filteredTimetables = trainEntries.map(
+        (e) => (e as TrainEntry & { _original: DailyTrainTimetable })._original
+      );
 
       if (format === 'json') {
         console.log(JSON.stringify({
@@ -170,12 +210,23 @@ timetableCommand
             from: fromStation,
             to: toStation,
             date: queryDate,
+            filters: {
+              departAfter,
+              departBefore: options.departBefore,
+              arriveBy: options.arriveBy,
+              type: options.type,
+              excludeType: options.excludeType,
+              tpass: options.tpass,
+              bike: options.bike,
+              wheelchair: options.wheelchair,
+              sort: options.sort,
+            },
           },
-          count: timetables.length,
-          timetables: formatTimetablesForJson(timetables, fromStation.id, toStation.id),
+          count: filteredTimetables.length,
+          timetables: formatTimetablesForJson(filteredTimetables, fromStation.id, toStation.id),
         }, null, 2));
       } else {
-        printTimetableTable(timetables, fromStation, toStation, queryDate);
+        printTimetableTable(filteredTimetables, fromStation, toStation, queryDate);
       }
     } catch (error) {
       if (format === 'json') {
@@ -253,7 +304,14 @@ timetableCommand
   .command('station <station> [date]')
   .description('查詢車站每日時刻表')
   .option('--direction <dir>', '方向篩選：0=順行（南下）、1=逆行（北上）')
-  .option('--after <time>', '只顯示指定時間之後的班次 (HH:MM)')
+  .option('--depart-after <time>', '出發時間不早於 (HH:MM)')
+  .option('--depart-before <time>', '出發時間不晚於 (HH:MM)')
+  .option('--after <time>', '只顯示指定時間之後的班次 (HH:MM) [已棄用，請用 --depart-after]')
+  .option('-t, --type <types>', '篩選車種（逗號分隔）')
+  .option('--exclude-type <types>', '排除車種（逗號分隔）')
+  .option('--bike', '僅顯示可攜帶自行車班次')
+  .option('--wheelchair', '僅顯示有輪椅服務班次')
+  .option('--sort <field>', '排序方式：departure|fare', 'departure')
   .option('--limit <number>', '限制顯示班次數量', '30')
   .option('--no-cache', '不使用快取')
   .action(async (station, date, options, cmd) => {
@@ -279,6 +337,13 @@ timetableCommand
       ? parseInt(options.direction, 10) as 0 | 1
       : undefined;
 
+    // Warn if bike/wheelchair used with station command
+    if (options.bike || options.wheelchair) {
+      if (format !== 'json') {
+        console.warn('警告：車站時刻表不包含自行車/輪椅服務資訊，請使用 daily 指令查詢');
+      }
+    }
+
     try {
       const api = getApiClient();
       const timetables = await api.getStationTimetable(
@@ -288,50 +353,55 @@ timetableCommand
         { skipCache: !options.cache }
       );
 
-      // 合併並篩選時刻表
-      let allTrains: Array<{
-        trainNo: string;
-        trainType: string;
-        endingStation: string;
-        direction: number;
-        arrival: string | null;
-        departure: string | null;
-      }> = [];
+      // 合併時刻表並轉換為 TrainEntry 格式
+      let trainEntries: (TrainEntry & { endingStation: string; direction: number })[] = [];
 
       for (const timetable of timetables) {
         for (const train of timetable.TimeTables) {
-          allTrains.push({
+          trainEntries.push({
             trainNo: train.TrainNo,
             trainType: train.TrainTypeName.Zh_tw,
+            trainTypeCode: '', // Not available in station timetable API
             endingStation: train.EndingStationName.Zh_tw,
             direction: timetable.Direction,
-            arrival: train.ArrivalTime || null,
-            departure: train.DepartureTime || null,
+            arrival: train.ArrivalTime || '',
+            departure: train.DepartureTime || '',
           });
         }
       }
 
-      // 過濾時間
-      if (options.after) {
-        allTrains = allTrains.filter((train) => {
-          const time = train.departure || train.arrival;
-          if (!time) return false;
-          return time >= options.after;
-        });
-      }
+      // Apply time range filters (support legacy --after option)
+      const departAfter = options.departAfter || options.after;
+      trainEntries = filterByTimeRange(trainEntries, {
+        departAfter,
+        departBefore: options.departBefore,
+      }) as typeof trainEntries;
 
-      // 依時間排序
-      allTrains.sort((a, b) => {
-        const aTime = a.departure || a.arrival || '';
-        const bTime = b.departure || b.arrival || '';
-        return aTime.localeCompare(bTime);
-      });
+      // Apply train type filters (by name only, no code available)
+      trainEntries = filterByTrainType(trainEntries, {
+        includeTypes: options.type ? parseTrainTypeInput(options.type) : undefined,
+        excludeTypes: options.excludeType ? parseTrainTypeInput(options.excludeType) : undefined,
+      }) as typeof trainEntries;
 
-      // 限制數量
+      // Sort
+      const sortField = options.sort as 'departure' | 'fare';
+      trainEntries = sortTrains(trainEntries, sortField) as typeof trainEntries;
+
+      // Limit
       const limit = parseInt(options.limit, 10);
-      if (limit > 0 && allTrains.length > limit) {
-        allTrains = allTrains.slice(0, limit);
+      if (limit > 0 && trainEntries.length > limit) {
+        trainEntries = trainEntries.slice(0, limit);
       }
+
+      // Convert back to output format
+      const allTrains = trainEntries.map((e) => ({
+        trainNo: e.trainNo,
+        trainType: e.trainType,
+        endingStation: e.endingStation,
+        direction: e.direction,
+        arrival: e.arrival || null,
+        departure: e.departure || null,
+      }));
 
       if (format === 'json') {
         console.log(JSON.stringify({
@@ -340,6 +410,13 @@ timetableCommand
             station: stationInfo,
             date: queryDate,
             direction: direction !== undefined ? (direction === 0 ? '順行' : '逆行') : 'all',
+            filters: {
+              departAfter,
+              departBefore: options.departBefore,
+              type: options.type,
+              excludeType: options.excludeType,
+              sort: options.sort,
+            },
           },
           count: allTrains.length,
           timetables: allTrains,
@@ -420,6 +497,10 @@ function formatTimetablesForJson(
   departure: string;
   arrival: string;
   duration: number;
+  services: {
+    bike: boolean;
+    wheelchair: boolean;
+  };
 }> {
   return timetables.map((train) => {
     const fromStop = train.StopTimes.find((s) => s.StationID === fromId);
@@ -443,6 +524,10 @@ function formatTimetablesForJson(
       departure,
       arrival,
       duration,
+      services: {
+        bike: train.TrainInfo.BikeFlag === 1,
+        wheelchair: train.TrainInfo.WheelChairFlag === 1,
+      },
     };
   });
 }
@@ -496,8 +581,8 @@ function printTimetableTable(
     return;
   }
 
-  console.log('車次\t車種\t\t出發\t\t抵達\t\t行車時間');
-  console.log('─'.repeat(70));
+  console.log('車次\t車種\t\t出發\t\t抵達\t\t行車時間\t服務');
+  console.log('─'.repeat(80));
 
   for (const train of timetables) {
     const fromStop = train.StopTimes.find((s) => s.StationID === from.id);
@@ -519,8 +604,14 @@ function printTimetableTable(
       durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
     }
 
+    // 服務標示
+    const services: string[] = [];
+    if (train.TrainInfo.BikeFlag === 1) services.push('🚲');
+    if (train.TrainInfo.WheelChairFlag === 1) services.push('♿');
+    const serviceStr = services.join(' ') || '-';
+
     console.log(
-      `${train.TrainInfo.TrainNo}\t${trainType}\t${departure}\t\t${arrival}\t\t${durationStr}`
+      `${train.TrainInfo.TrainNo}\t${trainType}\t${departure}\t\t${arrival}\t\t${durationStr.padEnd(8)}\t${serviceStr}`
     );
   }
 

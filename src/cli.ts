@@ -7,6 +7,7 @@ import { liveCommand } from './commands/live.js';
 import { bookCommand } from './commands/book.js';
 import { linesCommand } from './commands/lines.js';
 import { completionCommand } from './commands/completion.js';
+import { journeyCommand } from './commands/journey.js';
 
 export const cli = new Command();
 
@@ -30,3 +31,4 @@ cli.addCommand(liveCommand);
 cli.addCommand(bookCommand);
 cli.addCommand(linesCommand);
 cli.addCommand(completionCommand);
+cli.addCommand(journeyCommand);
