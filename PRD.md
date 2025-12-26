@@ -3,7 +3,7 @@
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
 > Date: 2025-12-26
-> Status: Phase 5 In Progress (Advanced Filtering)
+> Status: Phase 6 Complete (Journey Planner + TPASS Fare)
 
 ---
 
@@ -460,6 +460,12 @@ tra timetable daily 台北 高雄 --sort duration
 
 # 組合篩選：TPASS 可用 + 可攜自行車 + 早上出發
 tra timetable daily 台北 桃園 --tpass --bike --depart-after 08:00 --depart-before 12:00
+
+# 包含票價資訊
+tra timetable daily 台北 高雄 --with-fare
+
+# 完整查詢：特定時間 + 車種 + 服務 + 票價
+tra timetable daily 台北 高雄 --depart-after 08:00 --type 自強 --wheelchair --with-fare
 
 # 查詢 123 車次時刻
 tra timetable train 123
@@ -1379,58 +1385,50 @@ describe('StationResolver', () => {
 ```
 
 **Tests First**:
-- [ ] Train type filter tests (`tests/lib/train-type-filter.test.ts`)
-  - [ ] Filter by Chinese name (自強, 莒光)
-  - [ ] Filter by English alias (tc, ck)
-  - [ ] Filter by code (4, 5)
-  - [ ] Exclusion filter (--exclude-type)
-  - [ ] Wildcard filter (自強*)
-  - [ ] Fare ranking for sorting
-- [ ] Time range filter tests (`tests/lib/time-filter.test.ts`)
-  - [ ] departAfter filter
-  - [ ] departBefore filter
-  - [ ] arriveBy filter
-  - [ ] Combined time filters
-  - [ ] Default: filter from now
-- [ ] Service filter tests (`tests/lib/service-filter.test.ts`)
-  - [ ] BikeFlag filtering
-  - [ ] WheelChairFlag filtering
-  - [ ] Display icons in output (🚲, ♿)
-- [ ] Sort tests (`tests/lib/sort.test.ts`)
-  - [ ] Sort by departure time
-  - [ ] Sort by arrival time
-  - [ ] Sort by duration
-  - [ ] Sort by fare (train type ranking)
-- [ ] Timetable filter integration tests (`tests/commands/timetable-filter.test.ts`)
-  - [ ] Multiple filters combined (AND logic)
-  - [ ] Filter with TPASS
-  - [ ] Filter with sort
-  - [ ] Filter with limit
+- [x] Train type filter tests (`tests/lib/train-filter.test.ts`)
+  - [x] Filter by Chinese name (自強, 莒光)
+  - [x] Filter by English alias (tc, ck)
+  - [x] Filter by code (4, 5)
+  - [x] Exclusion filter (--exclude-type)
+  - [x] Wildcard filter (自強*)
+  - [x] Fare ranking for sorting
+- [x] Time range filter tests
+  - [x] departAfter filter
+  - [x] departBefore filter
+  - [x] arriveBy filter
+  - [x] Combined time filters
+- [x] Service filter tests
+  - [x] BikeFlag filtering
+  - [x] WheelChairFlag filtering
+  - [x] Display icons in output (🚲, ♿)
+- [x] Sort tests
+  - [x] Sort by departure time
+  - [x] Sort by arrival time
+  - [x] Sort by duration
+  - [x] Sort by fare (train type ranking)
+- [x] Timetable filter integration tests
+  - [x] Multiple filters combined (AND logic)
+  - [x] Filter with TPASS
+  - [x] Filter with sort
+  - [x] Filter with limit
 
 **Implementation**:
-- [ ] Train type filter module (`src/lib/train-type-filter.ts`)
-  - [ ] Train type code mapping with fare ranking
-  - [ ] Alias resolution (中文/英文/代碼)
-  - [ ] Exclusion support (--exclude-type)
-  - [ ] Wildcard support (* suffix)
-- [ ] Enhanced time filter (`src/lib/time-filter.ts`)
-  - [ ] departAfter, departBefore, arriveBy
-  - [ ] Default: from now (unless --all specified)
-  - [ ] Time comparison utilities
-- [ ] Service filter (`src/lib/service-filter.ts`)
-  - [ ] BikeFlag, WheelChairFlag handling
-  - [ ] Display icons in output
-- [ ] Sort module (`src/lib/sort.ts`)
-  - [ ] Multi-field sorting
-  - [ ] Fare ranking by train type
-- [ ] Command options update (`src/commands/timetable.ts`)
-  - [ ] `--depart-after`, `--depart-before`, `--arrive-by`
-  - [ ] `--type`, `--exclude-type`
-  - [ ] `--bike`, `--wheelchair`
-  - [ ] `--sort`
-- [ ] Filter chain implementation
-  - [ ] Composable filter functions
-  - [ ] AND logic between filters
+- [x] Train filter module (`src/lib/train-filter.ts`)
+  - [x] Train type code mapping with fare ranking
+  - [x] Alias resolution (中文/英文/代碼)
+  - [x] Exclusion support (--exclude-type)
+  - [x] Time range filtering
+  - [x] Service filtering (bike, wheelchair)
+  - [x] Sorting utilities
+- [x] Command options update (`src/commands/timetable.ts`)
+  - [x] `--depart-after`, `--depart-before`, `--arrive-by`
+  - [x] `--type`, `--exclude-type`
+  - [x] `--bike`, `--wheelchair`
+  - [x] `--sort`
+  - [x] `--with-fare` (含票價查詢)
+- [x] Filter chain implementation
+  - [x] Composable filter functions
+  - [x] AND logic between filters
 
 **Deliverable**: 進階篩選功能，支援時間範圍、車種、服務設施、多種排序
 

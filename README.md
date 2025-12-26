@@ -389,6 +389,47 @@ tra timetable daily --from 北車 --to 高火
 | 南車 | 臺南 (4220) |
 | 左營 | 新左營 (4350) |
 
+## Common Use Cases
+
+### AI Agent Queries
+
+```bash
+# "Find Tze-Chiang trains from Taipei to Kaohsiung after 8am with wheelchair service and fare"
+tra timetable daily 台北 高雄 --depart-after 08:00 --type 自強 --wheelchair --with-fare -f json
+
+# "Plan a trip from Keelung to Pingtung with transfers"
+tra journey 基隆 屏東 -f json
+
+# "I have TPASS, what's the cheapest way to get from Taipei to Hsinchu?"
+tra tpass fare 台北 新竹 --region 基北北桃 -f json
+```
+
+### Human-Friendly Queries
+
+```bash
+# Morning trains with bike service
+tra timetable daily 台北 花蓮 --depart-after 06:00 --depart-before 09:00 --bike -f table
+
+# Fastest trains to arrive by 6pm
+tra timetable daily 台北 高雄 --arrive-by 18:00 --sort duration -f table
+
+# Cross-region TPASS savings
+tra tpass fare 台北 台中 --region kpnt -f table
+```
+
+### Automation (n8n, scripts)
+
+```bash
+# Get next 5 trains as JSON
+tra timetable daily 台北 桃園 --limit 5 -f json
+
+# Check TPASS eligibility
+tra tpass check 台北 中壢 -f json | jq '.eligible'
+
+# Get adult fare
+tra fare 台北 高雄 -f json | jq '.fare.fares[0].price'
+```
+
 ## Environment Variables
 
 | Variable | Description |
