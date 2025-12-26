@@ -3,7 +3,7 @@
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
 > Date: 2025-12-26
-> Status: Phase 4 Complete (583 tests, ready for npm publish)
+> Status: Phase 5 In Progress (Advanced Filtering)
 
 ---
 
@@ -395,37 +395,118 @@ tra stations search <query>        # 模糊搜尋
 
 ```bash
 # 起訖站每日時刻表（對應 DailyTrainTimetable/OD）
-tra timetable daily --from <station> --to <station> [options]
+tra timetable daily <from> <to> [options]
 
 # Options:
---date <YYYY-MM-DD>                # 日期（預設今天）
---time <HH:MM>                     # 出發時間（篩選此時間後的班次）
---tpass                            # 僅顯示 TPASS 適用車種（見 TPASS 說明）
---type <types>                     # 篩選車種（逗號分隔）
+--date, -d <YYYY-MM-DD>            # 日期（預設今天）
+--depart-after <HH:MM>             # 出發時間不早於
+--depart-before <HH:MM>            # 出發時間不晚於
+--arrive-before <HH:MM>            # 抵達時間不晚於
+--type, -t <types>                 # 篩選車種（逗號分隔，見車種代碼表）
+--tpass                            # 僅顯示 TPASS 適用車種
+--bike                             # 僅顯示可攜帶自行車班次
+--limit <number>                   # 顯示班次數量（預設 20）
+--no-cache                         # 跳過快取
 
 # 車次時刻表（對應 GeneralTrainTimetable/TrainNo）
 tra timetable train <train-no>
 
 # 車站時刻表（對應 DailyStationTimetable）
 tra timetable station <station> [options]
---date <YYYY-MM-DD>                # 日期（預設今天）
+--date, -d <YYYY-MM-DD>            # 日期（預設今天）
 --direction <0|1>                  # 方向：0=順行 1=逆行
+--depart-after <HH:MM>             # 出發時間不早於
+--depart-before <HH:MM>            # 出發時間不晚於
+--type, -t <types>                 # 篩選車種
+--bike                             # 僅顯示可攜帶自行車班次
+--limit <number>                   # 顯示班次數量（預設 30）
 ```
 
 **範例**：
 
 ```bash
 # 查詢台北到高雄今天的班次
-tra timetable daily --from 台北 --to 高雄
+tra timetable daily 台北 高雄
 
-# 查詢明天 08:00 後的班次
-tra timetable daily --from 1000 --to 4400 --date 2025-12-26 --time 08:00
+# 查詢明天 08:00~12:00 出發的班次
+tra timetable daily 台北 高雄 -d 2025-12-26 --depart-after 08:00 --depart-before 12:00
+
+# 查詢下午 4 點前抵達的班次
+tra timetable daily 台北 高雄 --arrive-before 16:00
+
+# 只查自強號和莒光號
+tra timetable daily 台北 高雄 --type 自強,莒光
+
+# 查詢可攜帶自行車的班次
+tra timetable daily 台北 高雄 --bike
+
+# 組合篩選：TPASS 可用 + 可攜自行車 + 早上出發
+tra timetable daily 台北 桃園 --tpass --bike --depart-after 08:00 --depart-before 12:00
 
 # 查詢 123 車次時刻
 tra timetable train 123
 
-# 查詢 TPASS 可用班次（自動檢查生活圈）
-tra timetable daily --from 台北 --to 桃園 --tpass
+# 查詢台北站北上班次
+tra timetable station 台北 --direction 1
+```
+
+**車種代碼表**：
+
+| 代碼 | 名稱 | 別名 | TPASS | 說明 |
+|------|------|------|-------|------|
+| 1 | 太魯閣 | taroko, tze | ❌ | 傾斜式列車 |
+| 2 | 普悠瑪 | puyuma, pyu | ❌ | 傾斜式列車 |
+| 3 | 自強(3000) | emu3000, e3k | ❌ | EMU3000 新自強號 |
+| 4 | 自強 | tzeChiang, tc | ✅ | 一般自強號 |
+| 5 | 莒光 | chuKuang, ck | ✅ | 莒光號 |
+| 6 | 復興 | fuHsing, fh | ✅ | 復興號 |
+| 7 | 區間快 | localExpress, le | ✅ | 區間快車 |
+| 8 | 區間 | local, loc | ✅ | 區間車 |
+
+**車種篩選範例**：
+
+```bash
+# 使用中文名稱
+tra timetable daily 台北 高雄 --type 自強,莒光
+
+# 使用英文別名
+tra timetable daily 台北 高雄 --type tc,ck
+
+# 使用代碼
+tra timetable daily 台北 高雄 --type 4,5
+
+# 排除特定車種（使用 ! 前綴）
+tra timetable daily 台北 高雄 --type !太魯閣,!普悠瑪
+
+# 簡寫：只要自強號系列
+tra timetable daily 台北 高雄 --type 自強*
+```
+
+**篩選機制**：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. API Request                                               │
+│    GET /DailyTrainTimetable/OD/{from}/to/{to}/{date}        │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Client-side Filter Chain                                  │
+│                                                              │
+│    ┌─────────────┐   ┌─────────────┐   ┌─────────────┐      │
+│    │ Time Filter │ → │ Type Filter │ → │ Bike Filter │      │
+│    │ depart/arr  │   │ --type/tpass│   │ BikeFlag=1  │      │
+│    └─────────────┘   └─────────────┘   └─────────────┘      │
+│                                                              │
+│    篩選條件之間為 AND 關係                                    │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Sort & Limit                                              │
+│    按出發時間排序 → 取前 N 筆                                 │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **TPASS 篩選邏輯**：
@@ -434,6 +515,12 @@ tra timetable daily --from 台北 --to 桃園 --tpass
 1. 檢查起訖站是否在同一 TPASS 生活圈
 2. 若跨區，顯示警告並返回空結果
 3. 若同區，篩選適用車種（排除 EMU3000、普悠瑪、太魯閣等）
+
+**自行車篩選邏輯**：
+
+使用 `--bike` 時，CLI 會：
+1. 篩選 `BikeFlag = 1` 的班次
+2. 在輸出中標示 🚲 圖示
 
 #### `tra fare` - 票價查詢 ⭐
 
@@ -1225,6 +1312,50 @@ describe('StationResolver', () => {
 - [x] npm publish preparation (LICENSE, package.json fields)
 
 **Deliverable**: Production-ready multilingual CLI（總測試覆蓋率 >80%）
+
+### Phase 5: Advanced Filtering
+
+**Tests First**:
+- [ ] Train type filter tests (`tests/lib/train-type-filter.test.ts`)
+  - [ ] Filter by Chinese name (自強, 莒光)
+  - [ ] Filter by English alias (tc, ck)
+  - [ ] Filter by code (4, 5)
+  - [ ] Exclusion filter (!太魯閣)
+  - [ ] Wildcard filter (自強*)
+- [ ] Time range filter tests (`tests/lib/time-filter.test.ts`)
+  - [ ] departAfter filter
+  - [ ] departBefore filter
+  - [ ] arriveBefore filter
+  - [ ] Combined time filters
+- [ ] Bike filter tests (`tests/lib/bike-filter.test.ts`)
+  - [ ] BikeFlag = 1 filtering
+  - [ ] BikeFlag display in output
+- [ ] Timetable filter integration tests (`tests/commands/timetable-filter.test.ts`)
+  - [ ] Multiple filters combined
+  - [ ] Filter with TPASS
+  - [ ] Filter with limit
+
+**Implementation**:
+- [ ] Train type filter module (`src/lib/train-type-filter.ts`)
+  - [ ] Train type code mapping
+  - [ ] Alias resolution (中文/英文/代碼)
+  - [ ] Exclusion support (! prefix)
+  - [ ] Wildcard support (* suffix)
+- [ ] Enhanced time filter (`src/lib/time-filter.ts`)
+  - [ ] departAfter, departBefore, arriveBefore
+  - [ ] Time comparison utilities
+- [ ] Bike filter integration
+  - [ ] BikeFlag field handling
+  - [ ] Display 🚲 in output
+- [ ] Command options update
+  - [ ] `--depart-after`, `--depart-before`, `--arrive-before`
+  - [ ] `--type` with alias support
+  - [ ] `--bike` flag
+- [ ] Filter chain implementation
+  - [ ] Composable filter functions
+  - [ ] AND logic between filters
+
+**Deliverable**: 進階篩選功能，支援時間範圍、車種、自行車等多條件組合
 
 ---
 
