@@ -17,9 +17,31 @@ import {
   getEligibleTrainTypes,
   getExcludedTrainTypes,
 } from '../lib/tpass.js';
+import {
+  calculateCrossRegionOptions,
+  type CrossRegionFareResult,
+  type FareOption,
+} from '../lib/tpass-fare.js';
+import { TDXApiClient } from '../services/api.js';
+import { ConfigService } from '../services/config.js';
 
 // Initialize resolver
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
+const config = new ConfigService();
+
+/**
+ * Get API client for fare lookups
+ */
+function getApiClient(): TDXApiClient {
+  const clientId = config.getClientId();
+  const clientSecret = config.getClientSecret();
+
+  if (!clientId || !clientSecret) {
+    throw new Error('TDX API credentials not configured');
+  }
+
+  return new TDXApiClient(clientId, clientSecret);
+}
 
 export const tpassCommand = new Command('tpass')
   .description('TPASS 月票查詢');
@@ -221,3 +243,156 @@ tpassCommand
       console.log(`\n共 ${stations.length} 個車站`);
     }
   });
+
+/**
+ * tra tpass fare <from> <to> --region <region>
+ * Calculate cross-region fare options when traveling outside TPASS zone
+ */
+tpassCommand
+  .command('fare <from> <to>')
+  .description('跨區票價計算（TPASS 持有者出區旅行）')
+  .requiredOption('-r, --region <region>', 'TPASS 生活圈 ID 或名稱')
+  .action(async (from, to, options, cmd) => {
+    const format = cmd.optsWithGlobals().format || 'json';
+
+    // Resolve stations
+    const fromResult = resolver.resolve(from);
+    if (!fromResult.success) {
+      if (format === 'json') {
+        console.log(JSON.stringify({ success: false, error: fromResult.error }));
+      } else {
+        console.error(`錯誤：無法解析起站「${from}」`);
+        if (fromResult.error.suggestion) {
+          console.error(`建議：${fromResult.error.suggestion}`);
+        }
+      }
+      process.exit(1);
+    }
+
+    const toResult = resolver.resolve(to);
+    if (!toResult.success) {
+      if (format === 'json') {
+        console.log(JSON.stringify({ success: false, error: toResult.error }));
+      } else {
+        console.error(`錯誤：無法解析迄站「${to}」`);
+        if (toResult.error.suggestion) {
+          console.error(`建議：${toResult.error.suggestion}`);
+        }
+      }
+      process.exit(1);
+    }
+
+    const fromStation = fromResult.station;
+    const toStation = toResult.station;
+
+    // Resolve region
+    const region = getRegionByName(options.region);
+    if (!region) {
+      if (format === 'json') {
+        console.log(JSON.stringify({
+          success: false,
+          error: {
+            code: 'REGION_NOT_FOUND',
+            message: `找不到生活圈「${options.region}」`,
+            suggestion: '使用 tra tpass regions 查看所有生活圈',
+          },
+        }));
+      } else {
+        console.error(`錯誤：找不到生活圈「${options.region}」`);
+        console.error('使用 tra tpass regions 查看所有生活圈');
+      }
+      process.exit(1);
+    }
+
+    try {
+      const api = getApiClient();
+
+      // Fare lookup function for calculateCrossRegionOptions
+      const getFare = async (fromId: string, toId: string): Promise<number> => {
+        const fareData = await api.getODFare(fromId, toId);
+        if (!fareData || !fareData.Fares.length) {
+          throw new Error(`No fare data for ${fromId} → ${toId}`);
+        }
+        // Return adult regular fare (TicketType=1, FareClass=1)
+        const regularFare = fareData.Fares.find(
+          (f) => f.TicketType === 1 && f.FareClass === 1
+        );
+        return regularFare?.Price || fareData.Fares[0].Price;
+      };
+
+      const result = await calculateCrossRegionOptions(
+        fromStation.id,
+        toStation.id,
+        region.id,
+        getFare
+      );
+
+      if (format === 'json') {
+        console.log(JSON.stringify({
+          success: true,
+          ...result,
+        }, null, 2));
+      } else {
+        printCrossRegionFareTable(result);
+      }
+    } catch (error) {
+      if (format === 'json') {
+        console.log(JSON.stringify({
+          success: false,
+          error: {
+            code: 'API_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }));
+      } else {
+        console.error(`查詢失敗：${error instanceof Error ? error.message : String(error)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+/**
+ * Print cross-region fare options table
+ */
+function printCrossRegionFareTable(result: CrossRegionFareResult): void {
+  console.log(`\nTPASS 跨區票價計算`);
+  console.log(`${result.fromStationName || result.fromStation} → ${result.toStationName || result.toStation}`);
+  console.log(`持有 ${result.regionName} 月票\n`);
+
+  if (!result.crossRegion) {
+    console.log('✅ 目的地在同一生活圈內，TPASS 免費搭乘！');
+    return;
+  }
+
+  console.log(`直接購票票價：$${result.directFare}`);
+  console.log('');
+  console.log('乘車方案比較：');
+  console.log('─'.repeat(60));
+  console.log('方案\t\t\t\t\t票價\t節省\t推薦');
+  console.log('─'.repeat(60));
+
+  for (const option of result.options) {
+    const recommended = option.recommended ? '⭐' : '';
+    const savings = option.savings > 0 ? `$${option.savings}` : '-';
+
+    if (option.type === 'direct') {
+      console.log(`直接購票\t\t\t\t$${option.totalFare}\t${savings}\t${recommended}`);
+    } else if (option.type === 'tpass_free') {
+      console.log(`TPASS 免費\t\t\t\t$${option.totalFare}\t${savings}\t${recommended}`);
+    } else if (option.type === 'tpass_partial') {
+      const transferName = option.transferStationName || option.transferStation;
+      console.log(`TPASS → ${transferName} → 購票\t\t$${option.totalFare}\t${savings}\t${recommended}`);
+      if (option.paidSegment) {
+        console.log(`  └ ${option.paidSegment.fromName || option.paidSegment.from} → ${option.paidSegment.toName || option.paidSegment.to}: $${option.paidSegment.fare}`);
+      }
+    }
+  }
+
+  console.log('─'.repeat(60));
+
+  // Show recommendation
+  const best = result.options.find(o => o.recommended);
+  if (best && best.type === 'tpass_partial' && best.savings > 0) {
+    console.log(`\n💡 建議：在${best.transferStationName || best.transferStation}下車買票，可省 $${best.savings}！`);
+  }
+}

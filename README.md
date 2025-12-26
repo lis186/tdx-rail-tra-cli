@@ -12,7 +12,7 @@ A command-line tool for querying Taiwan Railway information, including stations,
 - **Journey Planner**: Plan trips with transfers, find optimal routes
 - **Real-time Info**: Live train positions and delay information
 - **Fare Query**: Ticket prices between stations
-- **TPASS Support**: Check TPASS monthly pass eligibility for routes
+- **TPASS Support**: Check TPASS monthly pass eligibility and cross-region fare optimization
 - **Booking Links**: Generate TRA booking URLs
 - **Multi-language**: Supports zh-TW, en, ja, ko
 - **Offline Capable**: Cached station data for offline use
@@ -227,6 +227,29 @@ tra tpass regions
 
 # List stations in a region
 tra tpass stations 基北北桃
+
+# Calculate cross-region fare options (when traveling outside your TPASS zone)
+tra tpass fare 台北 新竹 --region 基北北桃
+tra tpass fare 台北 台中 --region kpnt -f table
+```
+
+**Example Output (cross-region fare):**
+```
+TPASS 跨區票價計算
+臺北 → 臺中
+持有 基北北桃 月票
+
+直接購票票價：$500
+
+乘車方案比較：
+────────────────────────────────────────────────────────────
+方案                    票價    節省    推薦
+────────────────────────────────────────────────────────────
+TPASS → 中壢 → 購票    $390    $110    ⭐
+直接購票               $500    -
+────────────────────────────────────────────────────────────
+
+💡 建議：在中壢下車買票，可省 $110！
 ```
 
 ### `tra lines` - Railway Lines
@@ -416,7 +439,7 @@ npm run typecheck
 The project uses Vitest with TDD methodology:
 
 ```bash
-# Run all 648 tests
+# Run all 661 tests
 npm test
 
 # Run specific test file

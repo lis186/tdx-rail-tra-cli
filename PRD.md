@@ -1625,16 +1625,16 @@ tra tpass fare <from> <to> [options]
 ```
 
 **Tests First**:
-- [ ] Boundary station detection tests
-- [ ] Cross-region fare calculation tests
-- [ ] Optimal transfer point selection tests
-- [ ] Multiple TPASS regions comparison tests
+- [x] Boundary station detection tests
+- [x] Cross-region fare calculation tests
+- [x] Optimal transfer point selection tests
+- [x] Multiple TPASS regions comparison tests
 
 **Implementation**:
-- [ ] `tra tpass fare` command
-- [ ] Boundary station detector
-- [ ] Cross-region fare calculator
-- [ ] TPASS region boundary data
+- [x] `tra tpass fare` command
+- [x] Boundary station detector
+- [x] Cross-region fare calculator
+- [x] TPASS region boundary data
 
 ---
 
@@ -1653,8 +1653,8 @@ tra tpass fare <from> <to> [options]
 
 | Metric | Actual |
 |--------|--------|
-| Total Tests | 583 |
-| Test Files | 24 |
+| Total Tests | 661 |
+| Test Files | 27 |
 | Languages Supported | 4 (zh-TW, en, ja, ko) |
 | Commands Implemented | 10 |
 | E2E Test Coverage | Exit codes, JSON output, error handling, performance |
