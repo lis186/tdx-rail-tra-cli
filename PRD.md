@@ -85,7 +85,110 @@
 - **Auth Endpoint**: `https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token`
 - **Auth Method**: OAuth2 Client Credentials Flow
 
-### 3.2 Endpoints（基於 n8n Workflow 分析）
+### 3.2 TDX API 限制與合規
+
+| 限制項目 | 規定 | CLI 對應措施 |
+|----------|------|--------------|
+| Token 有效期 | 86400 秒 (1 天) | Token 快取 + 提前 60 秒刷新 |
+| Rate Limit | 50 req/s (per IP) | Rate Limiter (Token Bucket) |
+| TLS 版本 | 1.2+ | Node.js 預設支援 |
+| API Key 數量 | 最多 3 組/帳號 | 由使用者管理 |
+
+#### 3.2.1 Rate Limiting 機制
+
+採用 **Token Bucket** 演算法實作 Rate Limiting：
+
+```typescript
+// src/services/rate-limiter.ts
+
+interface RateLimiterConfig {
+  maxTokens: number;      // 最大令牌數（預設 50）
+  refillRate: number;     // 每秒補充令牌數（預設 50）
+  retryAfterMs: number;   // 等待後重試間隔（預設 100ms）
+  maxRetries: number;     // 最大重試次數（預設 3）
+}
+
+class RateLimiter {
+  /**
+   * 請求令牌，若令牌不足則等待
+   * @returns Promise<void> 取得令牌後 resolve
+   * @throws RateLimitError 超過最大重試次數
+   */
+  async acquire(): Promise<void>;
+
+  /**
+   * 嘗試取得令牌（非阻塞）
+   * @returns boolean 是否成功取得
+   */
+  tryAcquire(): boolean;
+
+  /**
+   * 重置令牌桶
+   */
+  reset(): void;
+}
+```
+
+**行為說明**：
+
+1. **正常情況**：令牌充足時，請求立即執行
+2. **接近限制**：令牌不足時，自動等待令牌補充後重試
+3. **超過限制**：重試次數超過上限時，拋出 `RateLimitError`
+
+**錯誤處理**：
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "API 請求過於頻繁，請稍後再試",
+    "retryAfter": 1000
+  }
+}
+```
+
+#### 3.2.2 Retry 機制
+
+採用 **Exponential Backoff** 處理暫時性錯誤：
+
+```typescript
+// src/services/retry.ts
+
+interface RetryConfig {
+  maxRetries: number;           // 最大重試次數（預設 3）
+  baseDelayMs: number;          // 基礎延遲（預設 1000ms）
+  maxDelayMs: number;           // 最大延遲（預設 10000ms）
+  retryableStatuses: number[];  // 可重試的 HTTP 狀態碼
+}
+
+// 可重試的狀態碼
+const RETRYABLE_STATUSES = [
+  408,  // Request Timeout
+  429,  // Too Many Requests
+  500,  // Internal Server Error
+  502,  // Bad Gateway
+  503,  // Service Unavailable
+  504,  // Gateway Timeout
+];
+```
+
+**Backoff 計算**：
+
+```
+delay = min(baseDelay * 2^attempt + jitter, maxDelay)
+jitter = random(0, baseDelay * 0.1)
+```
+
+**範例**：
+
+| 嘗試次數 | 延遲時間 |
+|----------|----------|
+| 1 | ~1000ms |
+| 2 | ~2000ms |
+| 3 | ~4000ms |
+
+### 3.3 Endpoints（基於 n8n Workflow 分析）
 
 #### 核心 API（與現有 n8n Workflow 對齊）
 
@@ -111,7 +214,7 @@
 | `Rail/TRA/DailyStationTimetable` | v3 | 車站每日時刻表 | `tra timetable station` |
 | `Rail/TRA/StationLiveBoard` | v3 | 車站即時看板 | `tra live station` |
 
-### 3.3 OData 查詢模式
+### 3.4 OData 查詢模式
 
 基於 n8n workflow 分析，以下是實際使用的 OData 查詢：
 
@@ -1094,12 +1197,30 @@ describe('StationResolver', () => {
   - [x] Full workflow tests (`tests/e2e/workflow.test.ts`)
   - [x] Error handling tests (`tests/e2e/error-handling.test.ts`)
   - [x] CLI behavior tests (`tests/cli/behavior.test.ts`)
+- [x] Rate Limiting tests (`tests/services/rate-limiter.test.ts`) - 24 tests
+  - [x] Token bucket algorithm tests
+  - [x] Acquire/tryAcquire behavior tests
+  - [x] Concurrent request handling tests
+  - [x] Rate limit exceeded error tests
+- [x] Retry mechanism tests (`tests/services/retry.test.ts`) - 42 tests
+  - [x] Exponential backoff calculation tests
+  - [x] Retryable status code tests
+  - [x] Max retry limit tests
+  - [x] Jitter tests
 
 **Implementation**:
 - [x] i18n support (zh-TW, en, ja, ko) - `src/i18n/`
 - [x] Shell completion (`tra completion bash/zsh/fish`) - `src/commands/completion.ts`
 - [x] Binary distribution (Bun compile) - `npm run build:binary:all`
 - [x] QA test suite - `tests/helpers/cli-runner.ts`
+- [x] Rate Limiting - `src/services/rate-limiter.ts`
+  - [x] Token Bucket algorithm (50 req/s)
+  - [x] Blocking acquire with retry
+  - [x] Non-blocking tryAcquire
+- [x] Retry mechanism - `src/services/retry.ts`
+  - [x] Exponential backoff with jitter
+  - [x] Configurable retryable status codes
+  - [x] Integration with API client
 - [ ] README & documentation
 - [ ] npm publish
 
@@ -1122,8 +1243,8 @@ describe('StationResolver', () => {
 
 | Metric | Actual |
 |--------|--------|
-| Total Tests | 517 |
-| Test Files | 22 |
+| Total Tests | 583 |
+| Test Files | 24 |
 | Languages Supported | 4 (zh-TW, en, ja, ko) |
 | Commands Implemented | 10 |
 | E2E Test Coverage | Exit codes, JSON output, error handling, performance |

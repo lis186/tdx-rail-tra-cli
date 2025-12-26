@@ -3,9 +3,11 @@
  * TDX API 客戶端 - 處理 TRA 相關 API 請求
  */
 
-import { ofetch } from 'ofetch';
+import { ofetch, FetchError } from 'ofetch';
 import { AuthService } from './auth.js';
 import { CacheService } from './cache.js';
+import { RateLimiter } from './rate-limiter.js';
+import { retry, isRetryableStatus } from './retry.js';
 import type {
   DailyTrainTimetable,
   GeneralTrainTimetable,
@@ -43,10 +45,12 @@ export interface ApiOptions {
 export class TDXApiClient {
   private auth: AuthService;
   private cache: CacheService;
+  private rateLimiter: RateLimiter;
 
   constructor(clientId: string, clientSecret: string) {
     this.auth = new AuthService(clientId, clientSecret);
     this.cache = new CacheService();
+    this.rateLimiter = new RateLimiter();
   }
 
   /**
@@ -277,22 +281,65 @@ export class TDXApiClient {
 
   /**
    * 發送帶認證的 API 請求
+   * 包含 Rate Limiting 和 Retry 機制
    */
   private async request<T>(url: string, query?: Record<string, string>): Promise<T> {
-    const token = await this.auth.getToken();
+    // 使用 retry 包裝請求，處理暫時性錯誤
+    return retry(
+      async () => {
+        // 取得 rate limit token
+        await this.rateLimiter.acquire();
 
-    return ofetch<T>(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      query: query
-        ? {
-            ...query,
-            $format: 'JSON',
-          }
-        : {
-            $format: 'JSON',
+        // 取得 auth token
+        const token = await this.auth.getToken();
+
+        return ofetch<T>(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-    });
+          query: query
+            ? {
+                ...query,
+                $format: 'JSON',
+              }
+            : {
+                $format: 'JSON',
+              },
+        });
+      },
+      {
+        maxRetries: 3,
+        baseDelayMs: 1000,
+        maxDelayMs: 10000,
+        shouldRetry: (error: unknown) => {
+          // 處理 FetchError
+          if (error instanceof FetchError) {
+            const status = error.statusCode ?? error.status;
+            if (status) {
+              // 401 表示 token 過期，清除快取後重試
+              if (status === 401) {
+                this.auth.clearCache();
+                return true;
+              }
+              return isRetryableStatus(status);
+            }
+          }
+
+          // 處理一般 Error（網路錯誤等）
+          if (error instanceof Error) {
+            const message = error.message.toLowerCase();
+            return (
+              message.includes('network') ||
+              message.includes('timeout') ||
+              message.includes('econnreset') ||
+              message.includes('socket hang up') ||
+              message.includes('fetch failed')
+            );
+          }
+
+          return false;
+        },
+      }
+    );
   }
 }

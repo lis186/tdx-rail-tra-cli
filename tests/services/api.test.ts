@@ -1,10 +1,45 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { DailyTrainTimetable, GeneralTrainTimetable, TrainLiveBoard, ODFare, TrainDelay } from '../../src/types/api.js';
 
-// Mock ofetch
-vi.mock('ofetch', () => ({
-  ofetch: vi.fn(),
+// Mock ofetch with FetchError
+vi.mock('ofetch', () => {
+  class FetchError extends Error {
+    statusCode?: number;
+    status?: number;
+
+    constructor(message: string, statusCode?: number) {
+      super(message);
+      this.name = 'FetchError';
+      this.statusCode = statusCode;
+      this.status = statusCode;
+    }
+  }
+
+  return {
+    ofetch: vi.fn(),
+    FetchError,
+  };
+});
+
+// Mock RateLimiter
+vi.mock('../../src/services/rate-limiter.js', () => ({
+  RateLimiter: class MockRateLimiter {
+    acquire = vi.fn().mockResolvedValue(undefined);
+    tryAcquire = vi.fn().mockReturnValue(true);
+    reset = vi.fn();
+    getAvailableTokens = vi.fn().mockReturnValue(50);
+  },
 }));
+
+// Mock retry - pass through to actual function but with modified config
+vi.mock('../../src/services/retry.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/services/retry.js')>();
+  return {
+    ...actual,
+    // Override retry to not actually wait during tests
+    retry: async <T>(fn: () => Promise<T>) => fn(),
+  };
+});
 
 // Mock AuthService - 使用工廠函數返回完整的 mock 實例
 vi.mock('../../src/services/auth.js', () => ({
@@ -333,8 +368,8 @@ describe('TDXApiClient', () => {
     });
 
     it('should handle 401 unauthorized', async () => {
-      const error = new Error('Unauthorized') as Error & { statusCode?: number };
-      error.statusCode = 401;
+      // Create error with statusCode property
+      const error = Object.assign(new Error('Unauthorized'), { statusCode: 401 });
       vi.mocked(ofetch).mockRejectedValueOnce(error);
 
       await expect(apiClient.getDailyTimetable('1000', '4400', '2025-01-15'))

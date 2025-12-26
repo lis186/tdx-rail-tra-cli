@@ -137,7 +137,7 @@ describe('Error Handling', () => {
           expect(() => JSON.parse(result.stdout)).not.toThrow();
         }
       }
-    });
+    }, 15000); // Increased timeout for multiple CLI spawns
 
     it('should include success field in JSON responses', async () => {
       const result = await runCLI(['tpass', 'regions', '-f', 'json']);
