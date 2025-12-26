@@ -401,10 +401,13 @@ tra timetable daily <from> <to> [options]
 --date, -d <YYYY-MM-DD>            # 日期（預設今天）
 --depart-after <HH:MM>             # 出發時間不早於
 --depart-before <HH:MM>            # 出發時間不晚於
---arrive-before <HH:MM>            # 抵達時間不晚於
+--arrive-by <HH:MM>                # 抵達時間不晚於（更口語）
 --type, -t <types>                 # 篩選車種（逗號分隔，見車種代碼表）
+--exclude-type <types>             # 排除車種
 --tpass                            # 僅顯示 TPASS 適用車種
 --bike                             # 僅顯示可攜帶自行車班次
+--wheelchair                       # 僅顯示有輪椅服務班次
+--sort <field>                     # 排序：departure|arrival|duration|fare
 --limit <number>                   # 顯示班次數量（預設 20）
 --no-cache                         # 跳過快取
 
@@ -418,7 +421,10 @@ tra timetable station <station> [options]
 --depart-after <HH:MM>             # 出發時間不早於
 --depart-before <HH:MM>            # 出發時間不晚於
 --type, -t <types>                 # 篩選車種
+--exclude-type <types>             # 排除車種
 --bike                             # 僅顯示可攜帶自行車班次
+--wheelchair                       # 僅顯示有輪椅服務班次
+--sort <field>                     # 排序：departure|duration|fare
 --limit <number>                   # 顯示班次數量（預設 30）
 ```
 
@@ -432,13 +438,25 @@ tra timetable daily 台北 高雄
 tra timetable daily 台北 高雄 -d 2025-12-26 --depart-after 08:00 --depart-before 12:00
 
 # 查詢下午 4 點前抵達的班次
-tra timetable daily 台北 高雄 --arrive-before 16:00
+tra timetable daily 台北 高雄 --arrive-by 16:00
 
 # 只查自強號和莒光號
 tra timetable daily 台北 高雄 --type 自強,莒光
 
+# 排除普悠瑪和太魯閣
+tra timetable daily 台北 高雄 --exclude-type 普悠瑪,太魯閣
+
 # 查詢可攜帶自行車的班次
 tra timetable daily 台北 高雄 --bike
+
+# 查詢有輪椅服務的班次
+tra timetable daily 台北 高雄 --wheelchair
+
+# 按票價排序（最便宜優先）
+tra timetable daily 台北 高雄 --sort fare
+
+# 按行車時間排序（最快優先）
+tra timetable daily 台北 高雄 --sort duration
 
 # 組合篩選：TPASS 可用 + 可攜自行車 + 早上出發
 tra timetable daily 台北 桃園 --tpass --bike --depart-after 08:00 --depart-before 12:00
@@ -1315,47 +1333,198 @@ describe('StationResolver', () => {
 
 ### Phase 5: Advanced Filtering
 
+**目標使用者情境**:
+
+| 使用者 | 情境 | 需要的篩選 |
+|--------|------|-----------|
+| AI Agent | 「幫我找 8-10 點台北到高雄的自強號」 | 時間範圍 + 車種 |
+| AI Agent | 「我 3 點要到台中，要搭幾點的車？」 | 抵達時間 |
+| 單車族 | 「帶腳踏車去花蓮，3 點前到」 | 自行車 + 抵達時間 |
+| 長途旅客 | 「帶阿嬤去台東，要有輪椅服務」 | 無障礙 |
+| 省錢族 | 「最便宜的車是哪班？」 | 票價排序 |
+| 趕時間族 | 「最快到達的車？」 | 行車時間排序 |
+
+**新增 Options**:
+
+```bash
+# 時間篩選
+--depart-after HH:MM      # 出發不早於
+--depart-before HH:MM     # 出發不晚於
+--arrive-by HH:MM         # 抵達不晚於（語意更口語）
+
+# 車種篩選
+--type, -t <types>        # 包含車種（中文/英文/代碼）
+--exclude-type <types>    # 排除車種
+
+# 服務篩選
+--bike                    # 可攜自行車 (BikeFlag=1)
+--wheelchair              # 輪椅服務 (WheelChairFlag=1)
+
+# 排序
+--sort <field>            # departure|arrival|duration|fare
+```
+
+**排序選項說明**:
+
+| `--sort` | 說明 | 情境 |
+|----------|------|------|
+| `departure` | 按出發時間（預設） | 一般查詢 |
+| `arrival` | 按抵達時間 | 趕時間 |
+| `duration` | 按行車時間 | 找最快 |
+| `fare` | 按票價（車種排序） | 找最便宜 |
+
+**票價排序邏輯**（同起訖站，不同車種）:
+```
+區間 < 區間快 < 復興 < 莒光 < 自強 < 普悠瑪/太魯閣/EMU3000
+```
+
 **Tests First**:
 - [ ] Train type filter tests (`tests/lib/train-type-filter.test.ts`)
   - [ ] Filter by Chinese name (自強, 莒光)
   - [ ] Filter by English alias (tc, ck)
   - [ ] Filter by code (4, 5)
-  - [ ] Exclusion filter (!太魯閣)
+  - [ ] Exclusion filter (--exclude-type)
   - [ ] Wildcard filter (自強*)
+  - [ ] Fare ranking for sorting
 - [ ] Time range filter tests (`tests/lib/time-filter.test.ts`)
   - [ ] departAfter filter
   - [ ] departBefore filter
-  - [ ] arriveBefore filter
+  - [ ] arriveBy filter
   - [ ] Combined time filters
-- [ ] Bike filter tests (`tests/lib/bike-filter.test.ts`)
-  - [ ] BikeFlag = 1 filtering
-  - [ ] BikeFlag display in output
+  - [ ] Default: filter from now
+- [ ] Service filter tests (`tests/lib/service-filter.test.ts`)
+  - [ ] BikeFlag filtering
+  - [ ] WheelChairFlag filtering
+  - [ ] Display icons in output (🚲, ♿)
+- [ ] Sort tests (`tests/lib/sort.test.ts`)
+  - [ ] Sort by departure time
+  - [ ] Sort by arrival time
+  - [ ] Sort by duration
+  - [ ] Sort by fare (train type ranking)
 - [ ] Timetable filter integration tests (`tests/commands/timetable-filter.test.ts`)
-  - [ ] Multiple filters combined
+  - [ ] Multiple filters combined (AND logic)
   - [ ] Filter with TPASS
+  - [ ] Filter with sort
   - [ ] Filter with limit
 
 **Implementation**:
 - [ ] Train type filter module (`src/lib/train-type-filter.ts`)
-  - [ ] Train type code mapping
+  - [ ] Train type code mapping with fare ranking
   - [ ] Alias resolution (中文/英文/代碼)
-  - [ ] Exclusion support (! prefix)
+  - [ ] Exclusion support (--exclude-type)
   - [ ] Wildcard support (* suffix)
 - [ ] Enhanced time filter (`src/lib/time-filter.ts`)
-  - [ ] departAfter, departBefore, arriveBefore
+  - [ ] departAfter, departBefore, arriveBy
+  - [ ] Default: from now (unless --all specified)
   - [ ] Time comparison utilities
-- [ ] Bike filter integration
-  - [ ] BikeFlag field handling
-  - [ ] Display 🚲 in output
-- [ ] Command options update
-  - [ ] `--depart-after`, `--depart-before`, `--arrive-before`
-  - [ ] `--type` with alias support
-  - [ ] `--bike` flag
+- [ ] Service filter (`src/lib/service-filter.ts`)
+  - [ ] BikeFlag, WheelChairFlag handling
+  - [ ] Display icons in output
+- [ ] Sort module (`src/lib/sort.ts`)
+  - [ ] Multi-field sorting
+  - [ ] Fare ranking by train type
+- [ ] Command options update (`src/commands/timetable.ts`)
+  - [ ] `--depart-after`, `--depart-before`, `--arrive-by`
+  - [ ] `--type`, `--exclude-type`
+  - [ ] `--bike`, `--wheelchair`
+  - [ ] `--sort`
 - [ ] Filter chain implementation
   - [ ] Composable filter functions
   - [ ] AND logic between filters
 
-**Deliverable**: 進階篩選功能，支援時間範圍、車種、自行車等多條件組合
+**Deliverable**: 進階篩選功能，支援時間範圍、車種、服務設施、多種排序
+
+### Phase 6: Journey Planner (轉乘規劃)
+
+**目標**: 支援無直達車路線的轉乘規劃
+
+**使用情境**:
+
+| 情境 | 範例 | 需求 |
+|------|------|------|
+| 無直達車 | 基隆 → 屏東 | 需要在高雄轉車 |
+| 最少轉乘 | 花蓮 → 嘉義 | 直達 vs 1轉 vs 2轉 |
+| 最短時間 | 台東 → 台北 | 考慮轉乘等待時間 |
+
+**新增指令**:
+
+```bash
+# 行程規劃（含轉乘）
+tra journey <from> <to> [options]
+
+# Options:
+--date, -d <YYYY-MM-DD>   # 日期
+--depart-after HH:MM      # 出發不早於
+--arrive-by HH:MM         # 抵達不晚於
+--max-transfers <n>       # 最多轉乘次數（預設 2）
+--min-transfer-time <min> # 最少轉乘時間（預設 10 分鐘）
+--sort transfers|duration|fare  # 排序方式
+```
+
+**輸出範例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "journeys": [
+      {
+        "type": "direct",
+        "transfers": 0,
+        "totalDuration": "4h30m",
+        "segments": [
+          { "trainNo": "123", "from": "基隆", "to": "高雄", ... }
+        ]
+      },
+      {
+        "type": "transfer",
+        "transfers": 1,
+        "totalDuration": "5h15m",
+        "transferStation": "台北",
+        "segments": [
+          { "trainNo": "456", "from": "基隆", "to": "台北", ... },
+          { "waitTime": "20m" },
+          { "trainNo": "789", "from": "台北", "to": "高雄", ... }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**演算法**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Journey Planner Algorithm                                    │
+├─────────────────────────────────────────────────────────────┤
+│ 1. 查詢直達車 (DailyTrainTimetable/OD)                       │
+│                                                              │
+│ 2. 若無直達或需要更多選項：                                   │
+│    a. 定義主要轉乘站（台北、台中、高雄、花蓮...）             │
+│    b. 查詢 Origin → TransferStation                         │
+│    c. 查詢 TransferStation → Destination                    │
+│    d. 計算有效轉乘組合（轉乘時間 >= minTransferTime）         │
+│                                                              │
+│ 3. 合併所有方案，按指定方式排序                               │
+│                                                              │
+│ 4. 返回前 N 個最佳方案                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Tests First**:
+- [ ] Journey planner algorithm tests
+- [ ] Transfer station detection tests
+- [ ] Transfer time calculation tests
+- [ ] Multi-segment journey sorting tests
+
+**Implementation**:
+- [ ] `tra journey` command
+- [ ] Journey planner service
+- [ ] Transfer station data
+- [ ] Transfer time calculation
+
+**Deliverable**: 轉乘規劃功能，自動計算最佳轉乘方案
 
 ---
 
