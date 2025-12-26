@@ -2,7 +2,8 @@
 
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
-> Date: 2025-12-25
+> Date: 2025-12-26
+> Status: Phase 4 Complete (438 tests)
 
 ---
 
@@ -61,7 +62,18 @@
 ### 2.3 Distribution
 
 - npm: `npm install -g tdx-rail-tra-cli`
-- Binary: 使用 `bun build --compile` 產生單一執行檔（未來）
+- Binary: 使用 Bun 編譯獨立執行檔
+  ```bash
+  # 當前平台
+  npm run build:binary
+
+  # 所有平台
+  npm run build:binary:all
+  # 輸出: dist/tra-{platform}-{arch}
+  # - tra-macos-arm64, tra-macos-x64
+  # - tra-linux-arm64, tra-linux-x64
+  # - tra-windows-x64.exe
+  ```
 
 ---
 
@@ -1104,6 +1116,16 @@ describe('StationResolver', () => {
 | Offline availability | 100% for stations, partial for timetable |
 | Test coverage | > 80% |
 | n8n workflow feature parity | 100% |
+
+### Current Status (2025-12-26)
+
+| Metric | Actual |
+|--------|--------|
+| Total Tests | 438 |
+| Test Files | 19 |
+| Languages Supported | 4 (zh-TW, en, ja, ko) |
+| Commands Implemented | 10 |
+| Platforms Supported | 5 (macOS/Linux ARM64/x64, Windows x64) |
 
 ---
 
