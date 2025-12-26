@@ -10,7 +10,7 @@ A command-line tool for querying Taiwan Railway information, including stations,
 - **Timetable Query**: Daily timetables, train schedules, and station departures
 - **Advanced Filtering**: Filter by time, train type, bike/wheelchair service, TPASS eligibility
 - **Journey Planner**: Plan trips with transfers, find optimal routes
-- **Real-time Info**: Live train positions and delay information
+- **Real-time Info**: Live train positions and delay information, integrated `--with-live` option
 - **Fare Query**: Ticket prices between stations
 - **TPASS Support**: Check TPASS monthly pass eligibility and cross-region fare optimization
 - **Booking Links**: Generate TRA booking URLs
@@ -132,6 +132,10 @@ tra timetable daily 台北 高雄 --wheelchair # Trains with wheelchair service
 # Include fare information
 tra timetable daily 台北 高雄 --with-fare  # Show ticket prices
 
+# Include live delay information (with remaining time)
+tra timetable daily 松山 板橋 --depart-after now --with-live
+tra timetable daily 松山 板橋 --tpass --depart-after now --limit 3 --with-live
+
 # Sort results
 tra timetable daily 台北 高雄 --sort duration  # Fastest first
 tra timetable daily 台北 高雄 --sort fare      # Cheapest first
@@ -145,6 +149,19 @@ tra timetable train 123
 # Station timetable
 tra timetable station 台北
 tra timetable station 台北 --direction 0  # 0=southbound, 1=northbound
+```
+
+**Example Output with `--with-live` (table format):**
+```
+松山 → 板橋 (2025-12-26)
+
+目前時間：19:26
+
+剩餘     車次   車種      預定    延誤    實際    服務
+──────────────────────────────────────────────────────
+10 分    1251   區間      19:36   +1分    19:37   🚲
+27 分    2273   區間      19:54   準時    19:54   🚲
+37 分    4209   區間      20:04   準時    20:04   🚲
 ```
 
 ### `tra journey` - Journey Planner (with Transfers)

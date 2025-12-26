@@ -3,7 +3,7 @@
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
 > Date: 2025-12-26
-> Status: Phase 6 Complete (Journey Planner + TPASS Fare)
+> Status: Phase 6 Complete (Journey Planner + TPASS Fare + Live Integration)
 
 ---
 
@@ -464,8 +464,14 @@ tra timetable daily 台北 桃園 --tpass --bike --depart-after 08:00 --depart-b
 # 包含票價資訊
 tra timetable daily 台北 高雄 --with-fare
 
+# 包含即時延誤資訊（擴大查詢範圍以捕捉延誤列車）
+tra timetable daily 松山 板橋 --depart-after now --with-live
+
 # 完整查詢：特定時間 + 車種 + 服務 + 票價
 tra timetable daily 台北 高雄 --depart-after 08:00 --type 自強 --wheelchair --with-fare
+
+# TPASS + 即時動態：接下來三班可搭列車（含剩餘時間）
+tra timetable daily 松山 板橋 --tpass --depart-after now --limit 3 --with-live
 
 # 查詢 123 車次時刻
 tra timetable train 123
@@ -1426,6 +1432,7 @@ describe('StationResolver', () => {
   - [x] `--bike`, `--wheelchair`
   - [x] `--sort`
   - [x] `--with-fare` (含票價查詢)
+  - [x] `--with-live` (含即時延誤資訊，支援 `--depart-after now`)
 - [x] Filter chain implementation
   - [x] Composable filter functions
   - [x] AND logic between filters

@@ -24,7 +24,10 @@ import {
   parseTrainTypeInput,
   type TrainEntry,
 } from '../lib/train-filter.js';
-import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable, ODFare } from '../types/api.js';
+import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable, ODFare, TrainDelay } from '../types/api.js';
+
+// 即時資訊緩衝時間（分鐘）- 往前查詢的範圍以捕捉延誤列車
+const LIVE_DELAY_BUFFER_MINUTES = 120;
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -36,6 +39,70 @@ const config = new ConfigService();
 function getToday(): string {
   const now = new Date();
   return now.toISOString().split('T')[0];
+}
+
+/**
+ * 取得台灣現在時間 (HH:MM)
+ */
+function getCurrentTaiwanTime(): string {
+  const now = new Date();
+  // Use Intl to get Taiwan time reliably
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const hour = parts.find(p => p.type === 'hour')?.value || '00';
+  const minute = parts.find(p => p.type === 'minute')?.value || '00';
+  return `${hour}:${minute}`;
+}
+
+/**
+ * 時間字串轉分鐘數
+ */
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * 分鐘數轉時間字串
+ */
+function minutesToTime(minutes: number): string {
+  // Handle negative and overflow
+  while (minutes < 0) minutes += 24 * 60;
+  minutes = minutes % (24 * 60);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+/**
+ * 時間相減（分鐘）
+ */
+function subtractMinutes(time: string, minutes: number): string {
+  return minutesToTime(timeToMinutes(time) - minutes);
+}
+
+/**
+ * 時間相加（分鐘）
+ */
+function addMinutes(time: string, minutes: number): string {
+  return minutesToTime(timeToMinutes(time) + minutes);
+}
+
+/**
+ * 計算剩餘時間（分鐘），考慮跨日
+ */
+function calculateRemainingMinutes(departureTime: string, currentTime: string): number {
+  const depMin = timeToMinutes(departureTime);
+  const curMin = timeToMinutes(currentTime);
+  let diff = depMin - curMin;
+  // 如果差值為負且絕對值很大，可能是跨日
+  if (diff < -12 * 60) diff += 24 * 60;
+  return diff;
 }
 
 /**
@@ -76,6 +143,7 @@ timetableCommand
   .option('--sort <field>', '排序方式：departure|arrival|duration|fare', 'departure')
   .option('--limit <number>', '限制顯示班次數量', '20')
   .option('--with-fare', '包含票價資訊')
+  .option('--with-live', '包含即時延誤資訊（會擴大查詢範圍以捕捉延誤列車）')
   .option('--no-cache', '不使用快取')
   .action(async (from, to, date, options, cmd) => {
     const format = cmd.optsWithGlobals().format || 'json';
@@ -144,6 +212,23 @@ timetableCommand
 
     try {
       const api = getApiClient();
+
+      // 處理即時查詢：擴大時間範圍以捕捉延誤列車
+      let departAfter = options.departAfter || options.after;
+
+      // 支援 "now" 關鍵字
+      if (departAfter === 'now') {
+        departAfter = getCurrentTaiwanTime();
+      }
+
+      const originalDepartAfter = departAfter; // 保存原始請求時間
+      let expandedDepartAfter = departAfter;
+
+      if (options.withLive && departAfter) {
+        // 往前擴大查詢範圍 (120 分鐘)
+        expandedDepartAfter = subtractMinutes(departAfter, LIVE_DELAY_BUFFER_MINUTES);
+      }
+
       const timetables = await api.getDailyTimetable(
         fromStation.id,
         toStation.id,
@@ -152,7 +237,15 @@ timetableCommand
       );
 
       // Convert to TrainEntry format for filtering
-      let trainEntries: TrainEntry[] = timetables.map((train) => {
+      type ExtendedTrainEntry = TrainEntry & {
+        _original: DailyTrainTimetable;
+        delayMinutes?: number;
+        actualDeparture?: string;
+        liveStatus?: string;
+        remainingMinutes?: number;
+      };
+
+      let trainEntries: ExtendedTrainEntry[] = timetables.map((train) => {
         const fromStop = train.StopTimes.find((s) => s.StationID === fromStation.id);
         const toStop = train.StopTimes.find((s) => s.StationID === toStation.id);
         return {
@@ -165,33 +258,95 @@ timetableCommand
           wheelChairFlag: train.TrainInfo.WheelChairFlag,
           // Keep reference to original for output
           _original: train,
-        } as TrainEntry & { _original: DailyTrainTimetable };
+        };
       });
 
-      // Apply time range filters (support legacy --after option)
-      const departAfter = options.departAfter || options.after;
+      // 第一階段：用擴大的時間範圍過濾
       trainEntries = filterByTimeRange(trainEntries, {
-        departAfter,
+        departAfter: expandedDepartAfter,
         departBefore: options.departBefore,
         arriveBy: options.arriveBy,
-      });
+      }) as ExtendedTrainEntry[];
 
       // Apply train type filters
       trainEntries = filterByTrainType(trainEntries, {
         includeTypes: options.type ? parseTrainTypeInput(options.type) : undefined,
         excludeTypes: options.excludeType ? parseTrainTypeInput(options.excludeType) : undefined,
         tpassOnly: options.tpass,
-      });
+      }) as ExtendedTrainEntry[];
 
       // Apply service filters
       trainEntries = filterByServices(trainEntries, {
         bikeOnly: options.bike,
         wheelchairOnly: options.wheelchair,
-      });
+      }) as ExtendedTrainEntry[];
 
-      // Sort
+      // 取得即時延誤資訊
+      let delayMap = new Map<string, TrainDelay>();
+      const currentTime = getCurrentTaiwanTime();
+
+      if (options.withLive && trainEntries.length > 0) {
+        try {
+          const trainNos = trainEntries.map((t) => t.trainNo);
+          const delays = await api.getTrainDelays(trainNos);
+          delayMap = new Map(delays.map((d) => [d.TrainNo, d]));
+
+          // 為每班車計算即時資訊
+          for (const entry of trainEntries) {
+            const delay = delayMap.get(entry.trainNo);
+            if (delay) {
+              entry.delayMinutes = delay.DelayTime;
+              entry.actualDeparture = addMinutes(entry.departure, delay.DelayTime);
+              entry.liveStatus = delay.DelayTime > 0
+                ? `晚 ${delay.DelayTime} 分`
+                : '準時';
+            } else {
+              // Live API 無資料 - 可能尚未發車或已過站
+              entry.delayMinutes = 0;
+              entry.actualDeparture = entry.departure;
+              entry.liveStatus = '尚未發車';
+            }
+            // 計算剩餘時間
+            entry.remainingMinutes = calculateRemainingMinutes(entry.actualDeparture, currentTime);
+          }
+
+          // 第二階段：用原始請求時間重新過濾（基於實際出發時間）
+          if (originalDepartAfter) {
+            const originalMinutes = timeToMinutes(originalDepartAfter);
+            trainEntries = trainEntries.filter((entry) => {
+              const actualMinutes = timeToMinutes(entry.actualDeparture!);
+              // 處理跨日情況
+              let diff = actualMinutes - originalMinutes;
+              if (diff < -12 * 60) diff += 24 * 60;
+              if (diff > 12 * 60) diff -= 24 * 60;
+              return diff >= 0;
+            });
+          }
+
+          // 過濾已發車的列車（剩餘時間 < 0）
+          trainEntries = trainEntries.filter((entry) =>
+            entry.remainingMinutes === undefined || entry.remainingMinutes >= -2
+          );
+        } catch {
+          // 即時資訊查詢失敗，繼續使用靜態時刻表
+          if (format !== 'json') {
+            console.warn('警告：即時資訊查詢失敗，僅顯示靜態時刻表');
+          }
+        }
+      }
+
+      // Sort (用實際出發時間排序，如果有的話)
       const sortField = options.sort as 'departure' | 'arrival' | 'duration' | 'fare';
-      trainEntries = sortTrains(trainEntries, sortField);
+      if (options.withLive && sortField === 'departure') {
+        // 用實際出發時間排序
+        trainEntries.sort((a, b) => {
+          const aTime = a.actualDeparture || a.departure;
+          const bTime = b.actualDeparture || b.departure;
+          return timeToMinutes(aTime) - timeToMinutes(bTime);
+        });
+      } else {
+        trainEntries = sortTrains(trainEntries, sortField) as ExtendedTrainEntry[];
+      }
 
       // Limit
       const limit = parseInt(options.limit, 10);
@@ -218,6 +373,24 @@ timetableCommand
       }
 
       if (format === 'json') {
+        // 準備輸出資料（包含即時資訊）
+        const timetablesOutput = formatTimetablesForJson(filteredTimetables, fromStation.id, toStation.id);
+
+        // 如果有即時資訊，附加到每個班次
+        if (options.withLive) {
+          for (let i = 0; i < timetablesOutput.length; i++) {
+            const entry = trainEntries[i];
+            if (entry) {
+              (timetablesOutput[i] as Record<string, unknown>).live = {
+                delayMinutes: entry.delayMinutes ?? 0,
+                actualDeparture: entry.actualDeparture || entry.departure,
+                status: entry.liveStatus || '未知',
+                remainingMinutes: entry.remainingMinutes ?? null,
+              };
+            }
+          }
+        }
+
         const output: Record<string, unknown> = {
           success: true,
           query: {
@@ -225,7 +398,7 @@ timetableCommand
             to: toStation,
             date: queryDate,
             filters: {
-              departAfter,
+              departAfter: originalDepartAfter,
               departBefore: options.departBefore,
               arriveBy: options.arriveBy,
               type: options.type,
@@ -233,12 +406,18 @@ timetableCommand
               tpass: options.tpass,
               bike: options.bike,
               wheelchair: options.wheelchair,
+              withLive: options.withLive,
               sort: options.sort,
             },
           },
           count: filteredTimetables.length,
-          timetables: formatTimetablesForJson(filteredTimetables, fromStation.id, toStation.id),
+          timetables: timetablesOutput,
         };
+
+        // Add current time if live info requested
+        if (options.withLive) {
+          output.currentTime = currentTime;
+        }
 
         // Add fare info if available
         if (fareData) {
@@ -247,7 +426,17 @@ timetableCommand
 
         console.log(JSON.stringify(output, null, 2));
       } else {
-        printTimetableTable(filteredTimetables, fromStation, toStation, queryDate, fareData);
+        // 傳遞即時資訊給 table 輸出
+        const liveData = options.withLive
+          ? trainEntries.map((e) => ({
+              trainNo: e.trainNo,
+              delayMinutes: e.delayMinutes ?? 0,
+              actualDeparture: e.actualDeparture || e.departure,
+              status: e.liveStatus || '未知',
+              remainingMinutes: e.remainingMinutes ?? null,
+            }))
+          : undefined;
+        printTimetableTable(filteredTimetables, fromStation, toStation, queryDate, fareData, liveData, currentTime);
       }
     } catch (error) {
       if (format === 'json') {
@@ -613,6 +802,30 @@ function formatFareForOutput(fare: ODFare): {
 }
 
 /**
+ * 即時資訊類型
+ */
+interface LiveInfo {
+  trainNo: string;
+  delayMinutes: number;
+  actualDeparture: string;
+  status: string;
+  remainingMinutes: number | null;
+}
+
+/**
+ * 格式化剩餘時間
+ */
+function formatRemainingTime(minutes: number | null): string {
+  if (minutes === null) return '--';
+  if (minutes < 0) return '已發車';
+  if (minutes < 1) return '即將發車';
+  if (minutes < 60) return `${minutes} 分`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h${mins}m` : `${hours}h`;
+}
+
+/**
  * 印出時刻表表格
  */
 function printTimetableTable(
@@ -620,9 +833,16 @@ function printTimetableTable(
   from: { name: string; id: string },
   to: { name: string; id: string },
   date: string,
-  fareData?: ODFare | null
+  fareData?: ODFare | null,
+  liveData?: LiveInfo[],
+  currentTime?: string
 ): void {
   console.log(`\n${from.name} → ${to.name} (${date})\n`);
+
+  // Show current time if live data available
+  if (liveData && currentTime) {
+    console.log(`目前時間：${currentTime}\n`);
+  }
 
   // Show fare info if available
   if (fareData) {
@@ -635,8 +855,22 @@ function printTimetableTable(
     return;
   }
 
-  console.log('車次\t車種\t\t出發\t\t抵達\t\t行車時間\t服務');
-  console.log('─'.repeat(80));
+  // Create live data lookup
+  const liveMap = new Map<string, LiveInfo>();
+  if (liveData) {
+    for (const live of liveData) {
+      liveMap.set(live.trainNo, live);
+    }
+  }
+
+  // Print header based on whether we have live data
+  if (liveData) {
+    console.log('剩餘\t\t車次\t車種\t\t預定\t\t延誤\t\t實際\t\t服務');
+    console.log('─'.repeat(90));
+  } else {
+    console.log('車次\t車種\t\t出發\t\t抵達\t\t行車時間\t服務');
+    console.log('─'.repeat(80));
+  }
 
   for (const train of timetables) {
     const fromStop = train.StopTimes.find((s) => s.StationID === from.id);
@@ -645,18 +879,7 @@ function printTimetableTable(
     const departure = fromStop?.DepartureTime || '--:--';
     const arrival = toStop?.ArrivalTime || '--:--';
     const trainType = train.TrainInfo.TrainTypeName.Zh_tw.padEnd(8, '　');
-
-    // 計算行車時間
-    let durationStr = '--';
-    if (fromStop?.DepartureTime && toStop?.ArrivalTime) {
-      const [dh, dm] = fromStop.DepartureTime.split(':').map(Number);
-      const [ah, am] = toStop.ArrivalTime.split(':').map(Number);
-      let minutes = (ah * 60 + am) - (dh * 60 + dm);
-      if (minutes < 0) minutes += 24 * 60;
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-    }
+    const trainNo = train.TrainInfo.TrainNo;
 
     // 服務標示
     const services: string[] = [];
@@ -664,9 +887,36 @@ function printTimetableTable(
     if (train.TrainInfo.WheelChairFlag === 1) services.push('♿');
     const serviceStr = services.join(' ') || '-';
 
-    console.log(
-      `${train.TrainInfo.TrainNo}\t${trainType}\t${departure}\t\t${arrival}\t\t${durationStr.padEnd(8)}\t${serviceStr}`
-    );
+    if (liveData) {
+      // 有即時資訊
+      const live = liveMap.get(trainNo);
+      const delayStr = live
+        ? (live.delayMinutes > 0 ? `+${live.delayMinutes}分` : (live.status === '尚未發車' ? '待發' : '準時'))
+        : '--';
+      const actualDep = live?.actualDeparture || departure;
+      const remaining = live ? formatRemainingTime(live.remainingMinutes) : '--';
+
+      console.log(
+        `${remaining.padEnd(8)}\t${trainNo}\t${trainType}\t${departure}\t\t${delayStr.padEnd(8)}\t${actualDep}\t\t${serviceStr}`
+      );
+    } else {
+      // 無即時資訊
+      // 計算行車時間
+      let durationStr = '--';
+      if (fromStop?.DepartureTime && toStop?.ArrivalTime) {
+        const [dh, dm] = fromStop.DepartureTime.split(':').map(Number);
+        const [ah, am] = toStop.ArrivalTime.split(':').map(Number);
+        let minutes = (ah * 60 + am) - (dh * 60 + dm);
+        if (minutes < 0) minutes += 24 * 60;
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      }
+
+      console.log(
+        `${trainNo}\t${trainType}\t${departure}\t\t${arrival}\t\t${durationStr.padEnd(8)}\t${serviceStr}`
+      );
+    }
   }
 
   console.log(`\n共 ${timetables.length} 班次`);
