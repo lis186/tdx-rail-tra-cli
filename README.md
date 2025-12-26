@@ -8,6 +8,8 @@ A command-line tool for querying Taiwan Railway information, including stations,
 
 - **Station Search**: Fuzzy search with typo correction and variant character support (台/臺)
 - **Timetable Query**: Daily timetables, train schedules, and station departures
+- **Advanced Filtering**: Filter by time, train type, bike/wheelchair service, TPASS eligibility
+- **Journey Planner**: Plan trips with transfers, find optimal routes
 - **Real-time Info**: Live train positions and delay information
 - **Fare Query**: Ticket prices between stations
 - **TPASS Support**: Check TPASS monthly pass eligibility for routes
@@ -111,9 +113,25 @@ tra stations info 台北
 
 ```bash
 # Daily timetable between stations
-tra timetable daily --from 台北 --to 高雄
-tra timetable daily --from 台北 --to 高雄 --date 2025-01-15
-tra timetable daily --from 台北 --to 高雄 --time 08:00
+tra timetable daily 台北 高雄
+tra timetable daily 台北 高雄 --date 2025-01-15
+
+# Filter by time range
+tra timetable daily 台北 高雄 --depart-after 08:00 --depart-before 12:00
+tra timetable daily 台北 高雄 --arrive-by 18:00
+
+# Filter by train type
+tra timetable daily 台北 高雄 --type 自強,普悠瑪
+tra timetable daily 台北 高雄 --exclude-type 區間
+tra timetable daily 台北 高雄 --tpass  # TPASS eligible trains only
+
+# Filter by services
+tra timetable daily 台北 高雄 --bike       # Trains with bike service
+tra timetable daily 台北 高雄 --wheelchair # Trains with wheelchair service
+
+# Sort results
+tra timetable daily 台北 高雄 --sort duration  # Fastest first
+tra timetable daily 台北 高雄 --sort fare      # Cheapest first
 
 # Query specific train schedule
 tra timetable train 123
@@ -121,6 +139,46 @@ tra timetable train 123
 # Station timetable
 tra timetable station 台北
 tra timetable station 台北 --direction 0  # 0=southbound, 1=northbound
+```
+
+### `tra journey` - Journey Planner (with Transfers)
+
+```bash
+# Plan a journey (finds direct and transfer options)
+tra journey 基隆 屏東
+tra journey 花蓮 嘉義 --date 2025-01-15
+
+# Filter options
+tra journey 台北 高雄 --depart-after 08:00
+tra journey 台北 高雄 --arrive-by 18:00
+
+# Transfer settings
+tra journey 基隆 屏東 --max-transfers 2      # Allow up to 2 transfers
+tra journey 基隆 屏東 --min-transfer-time 15 # Min 15 min between trains
+tra journey 基隆 屏東 --max-wait-time 60     # Max 60 min wait at station
+
+# Sort by different criteria
+tra journey 基隆 屏東 --sort transfers  # Fewest transfers first
+tra journey 基隆 屏東 --sort duration   # Fastest first (default)
+tra journey 基隆 屏東 --sort departure  # Earliest departure first
+
+# Table output for better readability
+tra journey 基隆 屏東 -f table
+```
+
+**Example Output (table format):**
+```
+行程規劃：基隆 → 屏東 (2025-12-26)
+
+┌────┬──────────────────────────────────────────────────┬────────┬────────┬────────┐
+│ #  │ 行程                                             │ 出發   │ 抵達   │ 時長   │
+├────┼──────────────────────────────────────────────────┼────────┼────────┼────────┤
+│ 1  │ [轉乘] 在臺北轉車 (等15分)                       │ 06:45  │ 11:39  │ 4h54m  │
+│    │ ① 1129 區間                                      │        │        │        │
+│    │    基隆 06:45 → 臺北 07:30                       │        │        │        │
+│    │ ② 107 普悠瑪(普悠瑪)                             │        │        │        │
+│    │    臺北 07:45 → 屏東 11:39                       │        │        │        │
+└────┴──────────────────────────────────────────────────┴────────┴────────┴────────┘
 ```
 
 ### `tra fare` - Fare Query
@@ -358,7 +416,7 @@ npm run typecheck
 The project uses Vitest with TDD methodology:
 
 ```bash
-# Run all 583 tests
+# Run all 648 tests
 npm test
 
 # Run specific test file
