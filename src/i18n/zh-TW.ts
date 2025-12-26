@@ -202,4 +202,9 @@ export const zhTW = {
   },
 } as const;
 
-export type TranslationKeys = typeof zhTW;
+// Create a deep readonly type that allows any string values (not literal types)
+type DeepStringify<T> = {
+  [K in keyof T]: T[K] extends string ? string : DeepStringify<T[K]>;
+};
+
+export type TranslationKeys = DeepStringify<typeof zhTW>;

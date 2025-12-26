@@ -3,7 +3,7 @@
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
 > Date: 2025-12-26
-> Status: Phase 4 Complete (438 tests)
+> Status: Phase 4 Complete (583 tests, ready for npm publish)
 
 ---
 
@@ -1221,8 +1221,8 @@ describe('StationResolver', () => {
   - [x] Exponential backoff with jitter
   - [x] Configurable retryable status codes
   - [x] Integration with API client
-- [ ] README & documentation
-- [ ] npm publish
+- [x] README & documentation
+- [x] npm publish preparation (LICENSE, package.json fields)
 
 **Deliverable**: Production-ready multilingual CLI（總測試覆蓋率 >80%）
 

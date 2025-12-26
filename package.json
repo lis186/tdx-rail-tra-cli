@@ -6,6 +6,19 @@
   "bin": {
     "tra": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/user/tdx-rail-tra-cli.git"
+  },
+  "homepage": "https://github.com/user/tdx-rail-tra-cli#readme",
+  "bugs": {
+    "url": "https://github.com/user/tdx-rail-tra-cli/issues"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
@@ -47,7 +60,16 @@
     "tra",
     "tdx",
     "cli",
-    "timetable"
+    "timetable",
+    "train",
+    "transport",
+    "api",
+    "tpass",
+    "booking",
+    "schedule",
+    "fare",
+    "ai-agent",
+    "automation"
   ],
   "author": "",
   "license": "MIT"
