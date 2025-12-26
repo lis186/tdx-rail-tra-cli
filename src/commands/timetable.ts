@@ -24,7 +24,7 @@ import {
   parseTrainTypeInput,
   type TrainEntry,
 } from '../lib/train-filter.js';
-import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable } from '../types/api.js';
+import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable, ODFare } from '../types/api.js';
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -75,6 +75,7 @@ timetableCommand
   .option('--wheelchair', '僅顯示有輪椅服務班次')
   .option('--sort <field>', '排序方式：departure|arrival|duration|fare', 'departure')
   .option('--limit <number>', '限制顯示班次數量', '20')
+  .option('--with-fare', '包含票價資訊')
   .option('--no-cache', '不使用快取')
   .action(async (from, to, date, options, cmd) => {
     const format = cmd.optsWithGlobals().format || 'json';
@@ -203,8 +204,21 @@ timetableCommand
         (e) => (e as TrainEntry & { _original: DailyTrainTimetable })._original
       );
 
+      // Fetch fare data if requested
+      let fareData: ODFare | null = null;
+      if (options.withFare) {
+        try {
+          fareData = await api.getODFare(fromStation.id, toStation.id);
+        } catch {
+          // Fare lookup failed, continue without fare data
+          if (format !== 'json') {
+            console.warn('警告：票價查詢失敗，不顯示票價資訊');
+          }
+        }
+      }
+
       if (format === 'json') {
-        console.log(JSON.stringify({
+        const output: Record<string, unknown> = {
           success: true,
           query: {
             from: fromStation,
@@ -224,9 +238,16 @@ timetableCommand
           },
           count: filteredTimetables.length,
           timetables: formatTimetablesForJson(filteredTimetables, fromStation.id, toStation.id),
-        }, null, 2));
+        };
+
+        // Add fare info if available
+        if (fareData) {
+          output.fare = formatFareForOutput(fareData);
+        }
+
+        console.log(JSON.stringify(output, null, 2));
       } else {
-        printTimetableTable(filteredTimetables, fromStation, toStation, queryDate);
+        printTimetableTable(filteredTimetables, fromStation, toStation, queryDate, fareData);
       }
     } catch (error) {
       if (format === 'json') {
@@ -566,15 +587,48 @@ function formatTrainTimetableForJson(timetable: GeneralTrainTimetable): {
 }
 
 /**
+ * 格式化票價資訊供輸出
+ */
+function formatFareForOutput(fare: ODFare): {
+  adult: number;
+  child: number;
+  elderly: number;
+  disabled: number;
+} {
+  // Find adult regular fare (TicketType=1, FareClass=1)
+  const adultFare = fare.Fares.find((f) => f.TicketType === 1 && f.FareClass === 1);
+  // Find child fare (FareClass=2)
+  const childFare = fare.Fares.find((f) => f.TicketType === 1 && f.FareClass === 2);
+  // Find elderly fare (FareClass=3)
+  const elderlyFare = fare.Fares.find((f) => f.TicketType === 1 && f.FareClass === 3);
+  // Find disabled fare (FareClass=4)
+  const disabledFare = fare.Fares.find((f) => f.TicketType === 1 && f.FareClass === 4);
+
+  return {
+    adult: adultFare?.Price || 0,
+    child: childFare?.Price || 0,
+    elderly: elderlyFare?.Price || 0,
+    disabled: disabledFare?.Price || 0,
+  };
+}
+
+/**
  * 印出時刻表表格
  */
 function printTimetableTable(
   timetables: DailyTrainTimetable[],
   from: { name: string; id: string },
   to: { name: string; id: string },
-  date: string
+  date: string,
+  fareData?: ODFare | null
 ): void {
   console.log(`\n${from.name} → ${to.name} (${date})\n`);
+
+  // Show fare info if available
+  if (fareData) {
+    const fare = formatFareForOutput(fareData);
+    console.log(`票價：成人 $${fare.adult}｜孩童 $${fare.child}｜敬老/愛心 $${fare.elderly}\n`);
+  }
 
   if (timetables.length === 0) {
     console.log('沒有找到班次');

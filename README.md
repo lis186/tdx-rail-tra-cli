@@ -129,9 +129,15 @@ tra timetable daily 台北 高雄 --tpass  # TPASS eligible trains only
 tra timetable daily 台北 高雄 --bike       # Trains with bike service
 tra timetable daily 台北 高雄 --wheelchair # Trains with wheelchair service
 
+# Include fare information
+tra timetable daily 台北 高雄 --with-fare  # Show ticket prices
+
 # Sort results
 tra timetable daily 台北 高雄 --sort duration  # Fastest first
 tra timetable daily 台北 高雄 --sort fare      # Cheapest first
+
+# Combined query (full example)
+tra timetable daily 台北 高雄 --depart-after 08:00 --type 自強 --wheelchair --with-fare -f table
 
 # Query specific train schedule
 tra timetable train 123
