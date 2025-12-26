@@ -1090,15 +1090,16 @@ describe('StationResolver', () => {
   - [x] Language fallback tests
   - [x] Language detection tests
 - [x] Shell completion tests (`tests/commands/completion.test.ts`) - 4 tests
-- [ ] E2E tests (`tests/e2e/`)
-  - [ ] Full workflow tests
-  - [ ] Offline mode tests
-  - [ ] Error handling tests
+- [x] E2E tests (`tests/e2e/`) - 79 tests
+  - [x] Full workflow tests (`tests/e2e/workflow.test.ts`)
+  - [x] Error handling tests (`tests/e2e/error-handling.test.ts`)
+  - [x] CLI behavior tests (`tests/cli/behavior.test.ts`)
 
 **Implementation**:
 - [x] i18n support (zh-TW, en, ja, ko) - `src/i18n/`
 - [x] Shell completion (`tra completion bash/zsh/fish`) - `src/commands/completion.ts`
 - [x] Binary distribution (Bun compile) - `npm run build:binary:all`
+- [x] QA test suite - `tests/helpers/cli-runner.ts`
 - [ ] README & documentation
 - [ ] npm publish
 
@@ -1121,10 +1122,11 @@ describe('StationResolver', () => {
 
 | Metric | Actual |
 |--------|--------|
-| Total Tests | 438 |
-| Test Files | 19 |
+| Total Tests | 517 |
+| Test Files | 22 |
 | Languages Supported | 4 (zh-TW, en, ja, ko) |
 | Commands Implemented | 10 |
+| E2E Test Coverage | Exit codes, JSON output, error handling, performance |
 | Platforms Supported | 5 (macOS/Linux ARM64/x64, Windows x64) |
 
 ---
