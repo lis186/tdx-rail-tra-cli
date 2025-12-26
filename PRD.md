@@ -1073,20 +1073,20 @@ describe('StationResolver', () => {
 ### Phase 4: Polish & Distribution
 
 **Tests First**:
-- [ ] i18n tests (`tests/i18n/`)
-  - [ ] All 4 languages translation completeness
-  - [ ] Language fallback tests
-  - [ ] Language detection tests
-- [ ] Shell completion tests (`tests/commands/completion.test.ts`)
+- [x] i18n tests (`tests/i18n/`) - 136 tests
+  - [x] All 4 languages translation completeness
+  - [x] Language fallback tests
+  - [x] Language detection tests
+- [x] Shell completion tests (`tests/commands/completion.test.ts`) - 4 tests
 - [ ] E2E tests (`tests/e2e/`)
   - [ ] Full workflow tests
   - [ ] Offline mode tests
   - [ ] Error handling tests
 
 **Implementation**:
-- [ ] i18n support (zh-TW, en, ja, ko)
-- [ ] Shell completion (`tra completion bash/zsh/fish`)
-- [ ] Binary distribution (Bun compile)
+- [x] i18n support (zh-TW, en, ja, ko) - `src/i18n/`
+- [x] Shell completion (`tra completion bash/zsh/fish`) - `src/commands/completion.ts`
+- [x] Binary distribution (Bun compile) - `npm run build:binary:all`
 - [ ] README & documentation
 - [ ] npm publish
 
