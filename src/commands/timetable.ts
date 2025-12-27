@@ -916,7 +916,7 @@ function printTimetableTable(
     if (hasPlatformInfo) header.push(padEnd('月臺', COL.platform));
     header.push('服務');
     console.log(header.join('  '));
-    console.log('─'.repeat(hasPlatformInfo ? 56 : 50));
+    console.log('─'.repeat(hasPlatformInfo ? 60 : 54));
   } else {
     console.log([
       padEnd('車次', COL.trainNo),
@@ -926,7 +926,7 @@ function printTimetableTable(
       padEnd('時間', COL.duration),
       '服務',
     ].join('  '));
-    console.log('─'.repeat(44));
+    console.log('─'.repeat(48));
   }
 
   for (const train of timetables) {
