@@ -2440,7 +2440,7 @@ $ tra tpass check 桃園 新竹
 - **穩定性提升**：標準差降低 27-48%（更可預測的性能）
 - **代碼改動**：52 行最小改動，零新依賴純原生實現
 - **測試驗證**：822/831 測試通過，零回歸
-- **詳細分析**：見 [PERFORMANCE_BENCHMARK.md](./PERFORMANCE_BENCHMARK.md)
+- **詳細分析**：見 [dev-notes/2025-12-27-performance-benchmark.md](./dev-notes/2025-12-27-performance-benchmark.md)
   - 並行算法驗證（Promise.all 雙層並行）
   - Rate Limiter 瓶頸分析
   - Phase 2 優化建議（ParallelRequestPool、初始化並行、快取預熱）

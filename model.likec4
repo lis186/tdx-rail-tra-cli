@@ -1,0 +1,57 @@
+model {
+  actor user 'Users'
+
+  tdx = softwareSystem 'TDX API' 'Transport Data eXchange API'
+  cache_sys = softwareSystem 'File Cache' 'Local filesystem cache'
+
+  tra_cli = softwareSystem 'TRA CLI' 'Taiwan Railway CLI Tool' {
+    cli = application 'CLI Core' {
+      technology 'TypeScript/Commander.js'
+    }
+
+    commands = application 'Commands' {
+      technology 'TypeScript'
+      component stations 'Stations'
+      component timetable 'Timetable'
+      component journey 'Journey Planner'
+      component live 'Live Status'
+      component fare 'Fare Query'
+      component alerts 'Service Alerts'
+      component lines 'Lines'
+      component tpass 'TPASS'
+      component booking 'Booking'
+    }
+
+    services = application 'Services' {
+      technology 'TypeScript'
+      component api 'API Service'
+      component auth 'Auth (OAuth2)'
+      component cache 'Cache Manager'
+    }
+
+    libs = application 'Libraries' {
+      technology 'TypeScript'
+      component station_resolver 'Station Resolver'
+      component journey_planner 'Journey Planner'
+      component formatters 'Output Formatters'
+      component time_utils 'Time Utils'
+    }
+  }
+
+  // Relationships
+  user -> cli 'runs commands'
+  cli -> commands 'routes to'
+  commands -> services 'uses'
+  commands -> libs 'uses'
+
+  services.api -> tdx 'HTTP requests'
+  services.cache -> cache_sys 'persists data'
+
+  station_resolver -> tdx 'queries stations'
+}
+
+views {
+  view 'System' {
+    include user, tra_cli, tdx, cache_sys
+  }
+}
