@@ -381,14 +381,14 @@ timetableCommand
         }
       }
 
-      // Sort (用實際出發時間排序，如果有的話)
+      // Sort (用剩餘時間排序，如果有即時資訊的話)
       const sortField = options.sort as 'departure' | 'arrival' | 'duration' | 'fare';
       if (options.withLive && sortField === 'departure') {
-        // 用實際出發時間排序
+        // 用剩餘時間排序（正確處理跨日班次）
         trainEntries.sort((a, b) => {
-          const aTime = a.actualDeparture || a.departure;
-          const bTime = b.actualDeparture || b.departure;
-          return timeToMinutes(aTime) - timeToMinutes(bTime);
+          const aRemaining = a.remainingMinutes ?? Infinity;
+          const bRemaining = b.remainingMinutes ?? Infinity;
+          return aRemaining - bRemaining;
         });
       } else {
         trainEntries = sortTrains(trainEntries, sortField) as ExtendedTrainEntry[];
