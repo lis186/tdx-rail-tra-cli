@@ -196,19 +196,24 @@ export interface StationLiveBoard {
     En: string;
   };
   TrainNo: string;
+  Direction: number;
+  TrainTypeID: string;
+  TrainTypeCode: string;
   TrainTypeName: {
     Zh_tw: string;
     En: string;
   };
+  EndingStationID: string;
   EndingStationName: {
     Zh_tw: string;
     En: string;
   };
-  Direction: number;
-  ScheduledDepartureTime?: string;
-  ScheduledArrivalTime?: string;
-  DelayTime: number;
+  TripLine?: number;
   Platform?: string;
+  ScheduleArrivalTime?: string;    // 格式: HH:MM:SS
+  ScheduleDepartureTime?: string;  // 格式: HH:MM:SS
+  DelayTime: number;
+  RunningStatus?: number;  // 0: 未發車, 1: 行駛中
   UpdateTime: string;
 }
 

@@ -320,8 +320,8 @@ function formatStationLiveBoardForJson(board: StationLiveBoard): {
     trainType: board.TrainTypeName.Zh_tw,
     endingStation: board.EndingStationName.Zh_tw,
     direction: board.Direction === 0 ? '順行' : '逆行',
-    arrivalTime: board.ScheduledArrivalTime || null,
-    departureTime: board.ScheduledDepartureTime || null,
+    arrivalTime: board.ScheduleArrivalTime || null,
+    departureTime: board.ScheduleDepartureTime || null,
     delayTime: board.DelayTime,
     delayStatus: formatDelayStatus(board.DelayTime),
     platform: board.Platform || null,
@@ -349,8 +349,8 @@ function printStationLiveBoard(
   for (const board of liveBoards) {
     const trainType = board.TrainTypeName.Zh_tw.padEnd(6, '　');
     const endStation = board.EndingStationName.Zh_tw.padEnd(4, '　');
-    const arrival = board.ScheduledArrivalTime || '--:--';
-    const departure = board.ScheduledDepartureTime || '--:--';
+    const arrival = board.ScheduleArrivalTime || '--:--';
+    const departure = board.ScheduleDepartureTime || '--:--';
     const status = formatDelayStatus(board.DelayTime);
 
     console.log(

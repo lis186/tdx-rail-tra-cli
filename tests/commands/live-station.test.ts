@@ -40,30 +40,42 @@ describe('Live Station Command', () => {
   });
 
   describe('getStationLiveBoard', () => {
+    // Mock data matching real TDX API response structure
     const mockLiveBoards: StationLiveBoard[] = [
       {
         StationID: '1000',
         StationName: { Zh_tw: '臺北', En: 'Taipei' },
         TrainNo: '123',
-        TrainTypeName: { Zh_tw: '自強', En: 'Tze-Chiang' },
-        EndingStationName: { Zh_tw: '高雄', En: 'Kaohsiung' },
         Direction: 0,
-        ScheduledDepartureTime: '08:30',
-        ScheduledArrivalTime: '08:28',
-        DelayTime: 0,
+        TrainTypeID: '1100',
+        TrainTypeCode: '1',
+        TrainTypeName: { Zh_tw: '自強', En: 'Tze-Chiang' },
+        EndingStationID: '4400',
+        EndingStationName: { Zh_tw: '高雄', En: 'Kaohsiung' },
+        TripLine: 0,
         Platform: '1A',
+        ScheduleArrivalTime: '08:28:00',
+        ScheduleDepartureTime: '08:30:00',
+        DelayTime: 0,
+        RunningStatus: 1,
         UpdateTime: '2025-01-15T08:25:00+08:00',
       },
       {
         StationID: '1000',
         StationName: { Zh_tw: '臺北', En: 'Taipei' },
         TrainNo: '456',
-        TrainTypeName: { Zh_tw: '區間', En: 'Local' },
-        EndingStationName: { Zh_tw: '基隆', En: 'Keelung' },
         Direction: 1,
-        ScheduledDepartureTime: '08:35',
-        ScheduledArrivalTime: '08:33',
+        TrainTypeID: '1131',
+        TrainTypeCode: '6',
+        TrainTypeName: { Zh_tw: '區間', En: 'Local' },
+        EndingStationID: '0900',
+        EndingStationName: { Zh_tw: '基隆', En: 'Keelung' },
+        TripLine: 0,
+        Platform: '',
+        ScheduleArrivalTime: '08:33:00',
+        ScheduleDepartureTime: '08:35:00',
         DelayTime: 5,
+        RunningStatus: 1,
         UpdateTime: '2025-01-15T08:25:00+08:00',
       },
     ];
@@ -126,7 +138,7 @@ describe('Live Station Command', () => {
       const result = await apiClient.getStationLiveBoard('1000');
 
       expect(result[0].Platform).toBe('1A');
-      expect(result[1].Platform).toBeUndefined();
+      expect(result[1].Platform).toBe(''); // 真實 API 回傳空字串而非 undefined
     });
   });
 });
