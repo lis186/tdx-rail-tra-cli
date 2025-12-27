@@ -6,6 +6,14 @@ vi.mock('ofetch', () => ({
   ofetch: vi.fn(),
 }));
 
+// Mock CacheService
+vi.mock('../../src/services/cache.js', () => ({
+  CacheService: vi.fn(() => ({
+    get: vi.fn(() => null), // 預設返回 null，表示無快取
+    set: vi.fn(),
+  })),
+}));
+
 import { ofetch } from 'ofetch';
 
 describe('AuthService', () => {

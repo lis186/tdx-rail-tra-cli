@@ -5,6 +5,7 @@
 
 import { ofetch } from 'ofetch';
 import * as metrics from '../lib/metrics.js';
+import { CacheService } from './cache.js';
 import type { TokenResponse, CachedToken } from '../types/auth.js';
 
 const TOKEN_ENDPOINT = 'https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token';
@@ -12,10 +13,17 @@ const TOKEN_ENDPOINT = 'https://tdx.transportdata.tw/auth/realms/TDXConnect/prot
 // Token 提前 60 秒過期，避免邊界問題
 const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000;
 
+// Token 快取鍵名
+const TOKEN_CACHE_KEY = 'auth/token';
+
+// Token 快取 TTL：24 小時（與 TDX API Token 有效期一致）
+const TOKEN_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 export class AuthService {
   private clientId: string;
   private clientSecret: string;
   private cachedToken: CachedToken | null = null;
+  private cacheService: CacheService;
 
   // 🔧 改進（P0 修復）：單一飛行請求（SFR）模式
   // 記錄正在進行的 token 請求，避免並發時重複發起 API 呼叫
@@ -24,6 +32,44 @@ export class AuthService {
   constructor(clientId: string, clientSecret: string) {
     this.clientId = clientId;
     this.clientSecret = clientSecret;
+    this.cacheService = new CacheService();
+
+    // 🔧 改進（P2 優化）：啟動時從磁碟載入 Token
+    this.loadTokenFromDisk();
+  }
+
+  /**
+   * 🔧 新增（P2 優化）：從磁碟載入快取的 Token
+   * 這樣每次進程重啟時都可以重用之前的 Token，避免重複認證
+   */
+  private loadTokenFromDisk(): void {
+    try {
+      const cached = this.cacheService.get<CachedToken>(TOKEN_CACHE_KEY);
+      if (cached && this.isTokenValidStatic(cached)) {
+        this.cachedToken = cached;
+        // 🔧 記錄磁碟快取命中 (P2 改善)
+        metrics.recordAuthCacheHit();
+      }
+    } catch (error) {
+      // 忽略讀取錯誤，繼續使用內存快取
+    }
+  }
+
+  /**
+   * 🔧 新增（P2 優化）：保存 Token 到磁碟
+   */
+  private saveTokenToDisk(): void {
+    if (this.cachedToken) {
+      try {
+        this.cacheService.set<CachedToken>(
+          TOKEN_CACHE_KEY,
+          this.cachedToken,
+          TOKEN_CACHE_TTL_MS
+        );
+      } catch (error) {
+        // 忽略保存錯誤，Token 仍在內存中
+      }
+    }
   }
 
   /**
@@ -65,6 +111,7 @@ export class AuthService {
 
   /**
    * 🔧 新增（P0 修復）：帶快取的 token 請求
+   * 🔧 改進（P2 優化）：現在保存 Token 到磁碟
    */
   private async requestTokenWithCache(): Promise<string> {
     // 再檢查一次快取（有可能其他請求在我們等待時已經更新了）
@@ -84,6 +131,9 @@ export class AuthService {
         accessToken: response.access_token,
         expiresAt,
       };
+
+      // 🔧 改進（P2 優化）：保存 Token 到磁碟
+      this.saveTokenToDisk();
 
       // 🔧 記錄 token 請求成功 (P2 改善)
       metrics.recordAuthTokenRequest(true);
@@ -106,6 +156,17 @@ export class AuthService {
       return false;
     }
     return Date.now() < this.cachedToken.expiresAt;
+  }
+
+  /**
+   * 🔧 新增（P2 優化）：靜態驗證方法
+   * 用於驗證從磁碟讀取的 Token，無需依賴 this.cachedToken
+   */
+  private isTokenValidStatic(token: CachedToken | null): boolean {
+    if (!token) {
+      return false;
+    }
+    return Date.now() < token.expiresAt;
   }
 
   /**
