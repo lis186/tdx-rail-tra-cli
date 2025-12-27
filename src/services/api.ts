@@ -318,21 +318,19 @@ export class TDXApiClient {
     lineIds: string[],
     options: ApiOptions = {}
   ): Promise<StationOfLine[]> {
-    const results: StationOfLine[] = [];
+    // 🔧 P2 改善：並行查詢所有支線（而非順序執行）
+    const promises = lineIds.map((lineId) =>
+      this.getStationsOfLine(lineId, options)
+        .then((result) => ({ status: 'fulfilled' as const, value: result }))
+        .catch(() => ({ status: 'rejected' as const, reason: null }))
+    );
 
-    for (const lineId of lineIds) {
-      try {
-        const stationOfLine = await this.getStationsOfLine(lineId, options);
-        if (stationOfLine) {
-          results.push(stationOfLine);
-        }
-      } catch {
-        // 忽略單一路線查詢失敗
-        continue;
-      }
-    }
+    const settled = await Promise.all(promises);
 
-    return results;
+    // 過濾成功結果
+    return settled
+      .filter((r) => r.status === 'fulfilled' && r.value !== null)
+      .map((r) => (r as { status: 'fulfilled'; value: StationOfLine }).value);
   }
 
   /**

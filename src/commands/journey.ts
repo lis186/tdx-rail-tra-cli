@@ -457,47 +457,57 @@ export const journeyCommand = new Command('journey')
         // 限制查詢的轉乘站數量（避免過多 API 呼叫）
         const transferStationsToQuery = potentialTransfers.slice(0, 3);
 
-        for (const transferStationId of transferStationsToQuery) {
+        // 🔧 P2 改善：外層並行查詢所有轉乘站（而非順序執行）
+        const transferQueries = transferStationsToQuery.map(async (transferStationId) => {
           const transferStation = TRA_STATIONS.find((s) => s.id === transferStationId);
-          if (!transferStation) continue;
+          if (!transferStation) return null;
 
           try {
-            // 查詢第一段：起站 → 轉乘站（使用 Hybrid 策略）
-            const firstLegSegments = await querySegmentsHybrid(
-              api,
-              fromStation.id,
-              transferStationId,
-              fromStation.name,
-              transferStation.name,
-              queryDate,
-              branchLineResolver,
-              { skipCache: !options.cache }
-            );
-
-            // 查詢第二段：轉乘站 → 迄站（使用 Hybrid 策略）
-            const secondLegSegments = await querySegmentsHybrid(
-              api,
-              transferStationId,
-              toStation.id,
-              transferStation.name,
-              toStation.name,
-              queryDate,
-              branchLineResolver,
-              { skipCache: !options.cache }
-            );
+            // 內層並行：每個轉乘站的兩段同時查詢
+            const [firstLegSegments, secondLegSegments] = await Promise.all([
+              querySegmentsHybrid(
+                api,
+                fromStation.id,
+                transferStationId,
+                fromStation.name,
+                transferStation.name,
+                queryDate,
+                branchLineResolver,
+                { skipCache: !options.cache }
+              ),
+              querySegmentsHybrid(
+                api,
+                transferStationId,
+                toStation.id,
+                transferStation.name,
+                toStation.name,
+                queryDate,
+                branchLineResolver,
+                { skipCache: !options.cache }
+              ),
+            ]);
 
             if (firstLegSegments.length > 0 && secondLegSegments.length > 0) {
-              transferLegs.push({
+              return {
                 transferStation: transferStationId,
                 firstLeg: firstLegSegments,
                 secondLeg: secondLegSegments,
-              });
+              };
             }
+            return null;
           } catch {
             // 忽略單一轉乘站查詢失敗
-            continue;
+            return null;
           }
-        }
+        });
+
+        // 等待所有查詢完成
+        const transferResults = await Promise.all(transferQueries);
+
+        // 過濾有效結果並添加到 transferLegs
+        transferLegs.push(
+          ...transferResults.filter((r): r is TransferLegData => r !== null)
+        );
       }
 
       // Step 3: 組合所有行程方案
