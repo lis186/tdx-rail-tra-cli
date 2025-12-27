@@ -33,6 +33,8 @@ export interface JourneyOption {
   departure: string;
   arrival: string;
   transferStation?: string; // station name for display
+  transferStationId?: string; // station ID for lookup
+  transferPlatformInfo?: string; // platform info (e.g., "1.3 月臺: 平溪線、深澳線")
   segments: JourneySegment[];
 }
 
@@ -260,18 +262,20 @@ export function sortJourneys(
 const DEFAULT_MIN_TRANSFER_TIME = 10;
 
 /**
- * TransferTimeResolver - 管理轉乘時間查詢
+ * TransferTimeResolver - 管理轉乘時間與月臺資訊查詢
  */
 export class TransferTimeResolver {
   private transferMap: Map<string, number> = new Map();
+  private descriptionMap: Map<string, string> = new Map(); // 月臺資訊
   private loaded: boolean = false;
 
   /**
-   * 從 LineTransfer 資料載入轉乘時間
+   * 從 LineTransfer 資料載入轉乘時間與月臺資訊
    * @param lineTransfers - LineTransfer API 回傳的資料
    */
   load(lineTransfers: LineTransfer[]): void {
     this.transferMap.clear();
+    this.descriptionMap.clear();
 
     for (const transfer of lineTransfers) {
       // 建立雙向索引（FromStation -> ToStation 和 ToStation -> FromStation）
@@ -281,6 +285,12 @@ export class TransferTimeResolver {
 
       this.transferMap.set(key1, transfer.MinTransferTime);
       this.transferMap.set(key2, transfer.MinTransferTime);
+
+      // 儲存月臺資訊（若有）
+      if (transfer.TransferDescription) {
+        // 用站點 ID 作為 key，因為月臺資訊是針對該站點
+        this.descriptionMap.set(transfer.FromStationID, transfer.TransferDescription);
+      }
     }
 
     this.loaded = true;
@@ -328,6 +338,15 @@ export class TransferTimeResolver {
    */
   isLoaded(): boolean {
     return this.loaded;
+  }
+
+  /**
+   * 取得轉乘站的月臺資訊
+   * @param stationId - 轉乘站 ID
+   * @returns 月臺資訊字串，若無資料則回傳 undefined
+   */
+  getTransferDescription(stationId: string): string | undefined {
+    return this.descriptionMap.get(stationId);
   }
 
   /**

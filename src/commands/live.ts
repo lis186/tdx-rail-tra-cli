@@ -343,18 +343,19 @@ function printStationLiveBoard(
     return;
   }
 
-  console.log('車次\t車種\t\t終點站\t\t到站\t\t發車\t\t狀態');
-  console.log('─'.repeat(80));
+  console.log('車次\t車種\t\t終點站\t\t月臺\t到站\t\t發車\t\t狀態');
+  console.log('─'.repeat(88));
 
   for (const board of liveBoards) {
     const trainType = board.TrainTypeName.Zh_tw.padEnd(6, '　');
     const endStation = board.EndingStationName.Zh_tw.padEnd(4, '　');
+    const platform = (board.Platform || '--').padEnd(4);
     const arrival = board.ScheduleArrivalTime || '--:--';
     const departure = board.ScheduleDepartureTime || '--:--';
     const status = formatDelayStatus(board.DelayTime);
 
     console.log(
-      `${board.TrainNo}\t${trainType}\t\t${endStation}\t\t${arrival}\t\t${departure}\t\t${status}`
+      `${board.TrainNo}\t${trainType}\t\t${endStation}\t\t${platform}\t${arrival}\t\t${departure}\t\t${status}`
     );
   }
 
