@@ -18,6 +18,7 @@ import type {
   Line,
   StationOfLine,
   DailyStationTimetable,
+  LineTransfer,
   DailyTimetableResponse,
   GeneralTimetableResponse,
   TrainLiveBoardResponse,
@@ -27,6 +28,7 @@ import type {
   LineResponse,
   StationOfLineResponse,
   DailyStationTimetableResponse,
+  LineTransferResponse,
 } from '../types/api.js';
 
 const API_BASE = 'https://tdx.transportdata.tw/api/basic';
@@ -36,6 +38,7 @@ const CACHE_TTL = {
   TIMETABLE: 4 * 60 * 60 * 1000, // 4 小時
   FARE: 7 * 24 * 60 * 60 * 1000, // 7 天（票價不常變動）
   STATIC: 24 * 60 * 60 * 1000, // 24 小時（路線等靜態資料）
+  LINE_TRANSFER: 7 * 24 * 60 * 60 * 1000, // 7 天（轉乘資訊不常變動）
 };
 
 export interface ApiOptions {
@@ -270,6 +273,31 @@ export class TDXApiClient {
     this.cache.set(cacheKey, stationOfLines[0], CACHE_TTL.STATIC);
 
     return stationOfLines[0];
+  }
+
+  /**
+   * 取得路線轉乘資訊
+   * 用於查詢轉乘站的最少轉乘時間
+   */
+  async getLineTransfers(options: ApiOptions = {}): Promise<LineTransfer[]> {
+    const cacheKey = 'line-transfers/all';
+
+    // 檢查快取
+    if (!options.skipCache) {
+      const cached = this.cache.get<LineTransfer[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const url = `${API_BASE}/v3/Rail/TRA/LineTransfer`;
+    const response = await this.request<LineTransferResponse>(url);
+    const result = response.LineTransfers ?? [];
+
+    // 儲存快取
+    this.cache.set(cacheKey, result, CACHE_TTL.LINE_TRANSFER);
+
+    return result;
   }
 
   /**

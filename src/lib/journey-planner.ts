@@ -3,6 +3,8 @@
  * 行程規劃模組 - 支援直達與轉乘規劃
  */
 
+import type { LineTransfer } from '../types/api.js';
+
 /**
  * Journey segment - a single leg of a journey (one train)
  */
@@ -38,16 +40,18 @@ export interface JourneyOption {
  * Journey planner options
  */
 export interface JourneyPlannerOptions {
-  minTransferTime: number; // minimum transfer time in minutes
+  minTransferTime: number; // minimum transfer time in minutes (fallback)
   maxTransferTime?: number; // maximum wait time at transfer station
   maxTransfers?: number; // maximum number of transfers
+  transferTimeResolver?: TransferTimeResolver; // dynamic transfer time lookup
 }
 
 /**
  * Transfer station leg data for journey planning
  */
 export interface TransferLegData {
-  transferStation: string;
+  transferStation: string; // station ID
+  transferStationName?: string; // station name for display
   firstLeg: JourneySegment[];
   secondLeg: JourneySegment[];
 }
@@ -172,10 +176,16 @@ export function findJourneyOptions(
 
   // Add transfer options
   for (const leg of transferLegs) {
+    // 決定此轉乘站的最少轉乘時間
+    // 優先使用 resolver（來自 API 的資料），否則使用 fallback
+    const stationMinTransferTime = options.transferTimeResolver
+      ? options.transferTimeResolver.getMinTransferTime(leg.transferStation)
+      : options.minTransferTime;
+
     for (const first of leg.firstLeg) {
       for (const second of leg.secondLeg) {
         // Check if transfer is valid
-        if (!isValidTransfer(first.arrival, second.departure, options.minTransferTime)) {
+        if (!isValidTransfer(first.arrival, second.departure, stationMinTransferTime)) {
           continue;
         }
 
@@ -242,4 +252,88 @@ export function sortJourneys(
   }
 
   return sorted;
+}
+
+/**
+ * Default minimum transfer time (minutes) when API data is not available
+ */
+const DEFAULT_MIN_TRANSFER_TIME = 10;
+
+/**
+ * TransferTimeResolver - 管理轉乘時間查詢
+ */
+export class TransferTimeResolver {
+  private transferMap: Map<string, number> = new Map();
+  private loaded: boolean = false;
+
+  /**
+   * 從 LineTransfer 資料載入轉乘時間
+   * @param lineTransfers - LineTransfer API 回傳的資料
+   */
+  load(lineTransfers: LineTransfer[]): void {
+    this.transferMap.clear();
+
+    for (const transfer of lineTransfers) {
+      // 建立雙向索引（FromStation -> ToStation 和 ToStation -> FromStation）
+      // 因為轉乘可能是雙向的
+      const key1 = `${transfer.FromStationID}-${transfer.ToStationID}`;
+      const key2 = `${transfer.ToStationID}-${transfer.FromStationID}`;
+
+      this.transferMap.set(key1, transfer.MinTransferTime);
+      this.transferMap.set(key2, transfer.MinTransferTime);
+    }
+
+    this.loaded = true;
+  }
+
+  /**
+   * 取得兩站之間的最少轉乘時間
+   * @param stationId - 轉乘站 ID
+   * @returns 最少轉乘時間（分鐘），若無資料則回傳預設值
+   */
+  getMinTransferTime(stationId: string): number {
+    if (!this.loaded) {
+      return DEFAULT_MIN_TRANSFER_TIME;
+    }
+
+    // 查找該站點相關的所有轉乘時間，取最小值
+    let minTime = DEFAULT_MIN_TRANSFER_TIME;
+    let found = false;
+
+    for (const [key, time] of this.transferMap.entries()) {
+      if (key.startsWith(`${stationId}-`) || key.endsWith(`-${stationId}`)) {
+        if (!found || time < minTime) {
+          minTime = time;
+          found = true;
+        }
+      }
+    }
+
+    return minTime;
+  }
+
+  /**
+   * 取得特定兩站之間的轉乘時間
+   * @param fromStationId - 起站 ID
+   * @param toStationId - 迄站 ID
+   * @returns 最少轉乘時間（分鐘），若無資料則回傳預設值
+   */
+  getTransferTimeBetween(fromStationId: string, toStationId: string): number {
+    const key = `${fromStationId}-${toStationId}`;
+    return this.transferMap.get(key) ?? DEFAULT_MIN_TRANSFER_TIME;
+  }
+
+  /**
+   * 檢查是否已載入資料
+   */
+  isLoaded(): boolean {
+    return this.loaded;
+  }
+
+  /**
+   * 取得預設轉乘時間
+   */
+  getDefaultTime(): number {
+    return DEFAULT_MIN_TRANSFER_TIME;
+  }
 }

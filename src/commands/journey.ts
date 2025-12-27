@@ -17,6 +17,7 @@ import {
   findJourneyOptions,
   sortJourneys,
   getTransferStations,
+  TransferTimeResolver,
   type JourneySegment,
   type JourneyOption,
   type TransferLegData,
@@ -260,6 +261,15 @@ export const journeyCommand = new Command('journey')
     try {
       const api = getApiClient();
 
+      // Step 0: 載入轉乘時間資料（用於動態計算最少轉乘時間）
+      const transferTimeResolver = new TransferTimeResolver();
+      try {
+        const lineTransfers = await api.getLineTransfers({ skipCache: !options.cache });
+        transferTimeResolver.load(lineTransfers);
+      } catch {
+        // 如果 API 失敗，使用預設值（不影響主流程）
+      }
+
       // Step 1: 查詢直達車
       const directTimetables = await api.getDailyTimetable(
         fromStation.id,
@@ -326,9 +336,13 @@ export const journeyCommand = new Command('journey')
       }
 
       // Step 3: 組合所有行程方案
+      // 如果使用者沒有指定 --min-transfer-time，使用 resolver 的動態值
+      // 否則使用使用者指定的值（作為強制覆蓋）
+      const useResolver = options.minTransferTime === '10'; // 預設值表示使用者沒有指定
       let journeys = findJourneyOptions(directSegments, transferLegs, {
         minTransferTime,
         maxTransferTime: maxWaitTime,
+        transferTimeResolver: useResolver ? transferTimeResolver : undefined,
       });
 
       // 過濾時間條件

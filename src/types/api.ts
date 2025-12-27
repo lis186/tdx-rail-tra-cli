@@ -297,3 +297,39 @@ export interface DailyStationTimetable {
 export interface DailyStationTimetableResponse extends TDXResponse<DailyStationTimetable[]> {
   StationTimetables: DailyStationTimetable[];
 }
+
+/**
+ * 路線轉乘資訊
+ * 描述兩條路線之間的轉乘關係及最少轉乘時間
+ */
+export interface LineTransfer {
+  FromLineID: string;
+  FromLineName: {
+    Zh_tw: string;
+    En: string;
+  };
+  FromStationID: string;
+  FromStationName: {
+    Zh_tw: string;
+    En: string;
+  };
+  ToLineID: string;
+  ToLineName: {
+    Zh_tw: string;
+    En: string;
+  };
+  ToStationID: string;
+  ToStationName: {
+    Zh_tw: string;
+    En: string;
+  };
+  MinTransferTime: number; // 最少轉乘時間（分鐘）
+  TransferDescription?: string;
+}
+
+/**
+ * 路線轉乘 API 回應
+ */
+export interface LineTransferResponse extends TDXResponse<LineTransfer[]> {
+  LineTransfers: LineTransfer[];
+}

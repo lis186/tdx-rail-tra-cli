@@ -10,10 +10,12 @@ import {
   findJourneyOptions,
   sortJourneys,
   getTransferStations,
+  TransferTimeResolver,
   type JourneySegment,
   type JourneyOption,
   type JourneyPlannerOptions,
 } from '../../src/lib/journey-planner.js';
+import type { LineTransfer } from '../../src/types/api.js';
 
 // ============================================================
 // Transfer Time Calculation Tests
@@ -451,5 +453,189 @@ describe('Edge Cases', () => {
     const taichungTransfer = options.find((o) => o.transferStation === '台中');
     expect(taipeiTransfer).toBeDefined();
     expect(taichungTransfer).toBeDefined();
+  });
+});
+
+// ============================================================
+// TransferTimeResolver Tests
+// ============================================================
+describe('TransferTimeResolver', () => {
+  // Mock LineTransfer data
+  // Mock data matching real TDX LineTransfer API response structure
+  const mockLineTransfers: LineTransfer[] = [
+    {
+      FromLineID: 'EL',
+      FromLineName: { Zh_tw: '東部幹線', En: 'Eastern Line' },
+      FromStationID: '1920', // 瑞芳
+      FromStationName: { Zh_tw: '瑞芳', En: 'Ruifang' },
+      ToLineID: 'PX',
+      ToLineName: { Zh_tw: '平溪線', En: 'Pingxi Line' },
+      ToStationID: '7390', // 三貂嶺
+      ToStationName: { Zh_tw: '三貂嶺', En: 'Sandiaoling' },
+      MinTransferTime: 3,
+      TransferDescription: '',
+    },
+    {
+      FromLineID: 'WL',
+      FromLineName: { Zh_tw: '西部幹線', En: 'Western Line' },
+      FromStationID: '3450', // 二水
+      FromStationName: { Zh_tw: '二水', En: 'Ershui' },
+      ToLineID: 'JJ',
+      ToLineName: { Zh_tw: '集集線', En: 'Jiji Line' },
+      ToStationID: '3451', // 集集線車站
+      ToStationName: { Zh_tw: '源泉', En: 'Yuanquan' },
+      MinTransferTime: 5,
+      TransferDescription: '',
+    },
+  ];
+
+  describe('load', () => {
+    it('should load LineTransfer data', () => {
+      const resolver = new TransferTimeResolver();
+      expect(resolver.isLoaded()).toBe(false);
+
+      resolver.load(mockLineTransfers);
+
+      expect(resolver.isLoaded()).toBe(true);
+    });
+  });
+
+  describe('getMinTransferTime', () => {
+    it('should return default time when not loaded', () => {
+      const resolver = new TransferTimeResolver();
+
+      expect(resolver.getMinTransferTime('1920')).toBe(10); // default
+    });
+
+    it('should return MinTransferTime from API data', () => {
+      const resolver = new TransferTimeResolver();
+      resolver.load(mockLineTransfers);
+
+      // 瑞芳站的轉乘時間應該是 3 分鐘
+      expect(resolver.getMinTransferTime('1920')).toBe(3);
+      // 二水站的轉乘時間應該是 5 分鐘
+      expect(resolver.getMinTransferTime('3450')).toBe(5);
+    });
+
+    it('should return default time for unknown station', () => {
+      const resolver = new TransferTimeResolver();
+      resolver.load(mockLineTransfers);
+
+      // 未知站點應返回預設值
+      expect(resolver.getMinTransferTime('9999')).toBe(10);
+    });
+  });
+
+  describe('getTransferTimeBetween', () => {
+    it('should return transfer time for specific station pair', () => {
+      const resolver = new TransferTimeResolver();
+      resolver.load(mockLineTransfers);
+
+      // 瑞芳 → 三貂嶺
+      expect(resolver.getTransferTimeBetween('1920', '7390')).toBe(3);
+      // 反向也應該有資料
+      expect(resolver.getTransferTimeBetween('7390', '1920')).toBe(3);
+    });
+
+    it('should return default for unknown station pair', () => {
+      const resolver = new TransferTimeResolver();
+      resolver.load(mockLineTransfers);
+
+      expect(resolver.getTransferTimeBetween('1000', '4400')).toBe(10);
+    });
+  });
+
+  describe('getDefaultTime', () => {
+    it('should return default transfer time constant', () => {
+      const resolver = new TransferTimeResolver();
+      expect(resolver.getDefaultTime()).toBe(10);
+    });
+  });
+});
+
+// ============================================================
+// Integration: findJourneyOptions with TransferTimeResolver
+// ============================================================
+describe('findJourneyOptions with TransferTimeResolver', () => {
+  const mockFirstLeg: JourneySegment[] = [
+    {
+      trainNo: '101',
+      trainType: '區間',
+      trainTypeCode: '8',
+      fromStation: '0900',
+      fromStationName: '基隆',
+      toStation: '1920', // 瑞芳
+      toStationName: '瑞芳',
+      departure: '07:00',
+      arrival: '07:30',
+    },
+  ];
+
+  const mockSecondLeg: JourneySegment[] = [
+    {
+      trainNo: '201',
+      trainType: '區間',
+      trainTypeCode: '8',
+      fromStation: '1920', // 瑞芳
+      fromStationName: '瑞芳',
+      toStation: '7390',
+      toStationName: '三貂嶺',
+      departure: '07:35', // 5 min after arrival
+      arrival: '07:50',
+    },
+  ];
+
+  it('should use resolver MinTransferTime when provided', () => {
+    const resolver = new TransferTimeResolver();
+    resolver.load([
+      {
+        FromLineID: 'EL',
+        FromLineName: { Zh_tw: '東部幹線', En: 'Eastern Line' },
+        FromStationID: '1920',
+        FromStationName: { Zh_tw: '瑞芳', En: 'Ruifang' },
+        ToLineID: 'PX',
+        ToLineName: { Zh_tw: '平溪線', En: 'Pingxi Line' },
+        ToStationID: '7390',
+        ToStationName: { Zh_tw: '三貂嶺', En: 'Sandiaoling' },
+        MinTransferTime: 3, // Only 3 min needed
+        TransferDescription: '',
+      },
+    ]);
+
+    const options = findJourneyOptions(
+      [],
+      [{ transferStation: '1920', firstLeg: mockFirstLeg, secondLeg: mockSecondLeg }],
+      { minTransferTime: 10, transferTimeResolver: resolver }
+    );
+
+    // 5 min transfer time >= 3 min (from resolver), should be valid
+    expect(options.length).toBe(1);
+    expect(options[0].waitTime).toBe(5);
+  });
+
+  it('should reject transfers when using default 10 min', () => {
+    const options = findJourneyOptions(
+      [],
+      [{ transferStation: '1920', firstLeg: mockFirstLeg, secondLeg: mockSecondLeg }],
+      { minTransferTime: 10 } // No resolver, use default 10 min
+    );
+
+    // 5 min transfer time < 10 min, should be rejected
+    expect(options.length).toBe(0);
+  });
+
+  it('should use fallback minTransferTime when resolver has no data for station', () => {
+    const resolver = new TransferTimeResolver();
+    resolver.load([]); // Empty data
+
+    const options = findJourneyOptions(
+      [],
+      [{ transferStation: '1920', firstLeg: mockFirstLeg, secondLeg: mockSecondLeg }],
+      { minTransferTime: 10, transferTimeResolver: resolver }
+    );
+
+    // Resolver has no data for 1920, uses default 10 min
+    // 5 min < 10 min, should be rejected
+    expect(options.length).toBe(0);
   });
 });

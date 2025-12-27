@@ -214,6 +214,7 @@ jitter = random(0, baseDelay * 0.1)
 | `Rail/TRA/TrainType` | v3 | 車種資料 | `tra train-types` |
 | `Rail/TRA/DailyStationTimetable` | v3 | 車站每日時刻表 | `tra timetable station` |
 | `Rail/TRA/StationLiveBoard` | v3 | 車站即時看板 | `tra live station` |
+| `Rail/TRA/LineTransfer` | v3 | 路線轉乘資訊 | (internal: journey planner) |
 
 ### 3.4 OData 查詢模式
 
@@ -1554,11 +1555,11 @@ tra journey <from> <to> [options]
 
 **優化方案**：
 
-| 優先級 | 方案 | 說明 | 效益 |
-|--------|------|------|------|
-| 🔴 高 | **支線行程規劃** | 使用 LineTransfer 識別支線（平溪線、集集線、內灣線等）轉乘點，支援前往/離開支線的行程規劃 | 目前無法規劃十分、車埕、內灣等支線站點的行程 |
-| 🟡 中 | **使用 MinTransferTime** | 將硬編碼的 10 分鐘轉乘時間改用 API 提供的 MinTransferTime（通常 3 分鐘），提供更精準的轉乘時間估計 | 減少不必要的等待時間估計，找到更多可行的轉乘方案 |
-| 🟢 低 | **月臺資訊顯示** | 使用 TransferDescription 顯示轉乘月臺資訊（如「經由第一月臺轉乘」） | 提升使用者體驗，減少找月臺的困擾 |
+| 優先級 | 方案 | 說明 | 效益 | 狀態 |
+|--------|------|------|------|------|
+| 🔴 高 | **支線行程規劃** | 使用 LineTransfer 識別支線（平溪線、集集線、內灣線等）轉乘點，支援前往/離開支線的行程規劃 | 目前無法規劃十分、車埕、內灣等支線站點的行程 | 待實作 |
+| 🟡 中 | **使用 MinTransferTime** | 將硬編碼的 10 分鐘轉乘時間改用 API 提供的 MinTransferTime（通常 3 分鐘），提供更精準的轉乘時間估計 | 減少不必要的等待時間估計，找到更多可行的轉乘方案 | ✅ 完成 |
+| 🟢 低 | **月臺資訊顯示** | 使用 TransferDescription 顯示轉乘月臺資訊（如「經由第一月臺轉乘」） | 提升使用者體驗，減少找月臺的困擾 | 待實作 |
 
 **支線識別邏輯**：
 
