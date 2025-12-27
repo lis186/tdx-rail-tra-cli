@@ -9,6 +9,9 @@ import { CacheService } from './cache.js';
 import { RateLimiter } from './rate-limiter.js';
 import { CircuitBreaker } from './circuit-breaker.js';
 import { retry, isRetryableStatus } from './retry.js';
+// 🔧 P1 改善：導出新的重試策略 (可選使用)
+export { retryWithExponentialBackoff, createApiRetryOptions, defaultShouldRetry } from '../lib/retry-strategy.js';
+export type { RetryOptions, RetryStatistics } from '../lib/retry-strategy.js';
 import type {
   DailyTrainTimetable,
   GeneralTrainTimetable,
