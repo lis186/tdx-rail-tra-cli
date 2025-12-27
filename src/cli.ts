@@ -8,6 +8,7 @@ import { bookCommand } from './commands/book.js';
 import { linesCommand } from './commands/lines.js';
 import { completionCommand } from './commands/completion.js';
 import { journeyCommand } from './commands/journey.js';
+import { alertsCommand } from './commands/alerts.js';
 
 export const cli = new Command();
 
@@ -32,3 +33,4 @@ cli.addCommand(bookCommand);
 cli.addCommand(linesCommand);
 cli.addCommand(completionCommand);
 cli.addCommand(journeyCommand);
+cli.addCommand(alertsCommand);

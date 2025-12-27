@@ -349,3 +349,39 @@ export interface LineTransfer {
 export interface LineTransferResponse extends TDXResponse<LineTransfer[]> {
   LineTransfers: LineTransfer[];
 }
+
+/**
+ * 阻通資訊 (Alert)
+ * 描述路線或站點的停駛、異常狀態
+ */
+export interface Alert {
+  AlertID: string;
+  Title: string;
+  Description: string;
+  Status: number; // 2 = active
+  Scope: {
+    NetworkList?: {
+      NetworkID: string;
+      NetworkName: string;
+    };
+    Stations?: Array<{
+      StationID: string;
+      StationName: string;
+    }>;
+    Lines?: Array<{
+      LineID: string;
+      LineName: string;
+    }>;
+  };
+  AlertURL?: string;
+  PublishTime?: string;
+  StartTime?: string;
+  EndTime?: string;
+}
+
+/**
+ * 阻通資訊 API 回應
+ */
+export interface AlertResponse extends TDXResponse<Alert[]> {
+  Alerts: Alert[];
+}

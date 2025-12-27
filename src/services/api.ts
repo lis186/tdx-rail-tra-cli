@@ -19,6 +19,7 @@ import type {
   StationOfLine,
   DailyStationTimetable,
   LineTransfer,
+  Alert,
   DailyTimetableResponse,
   GeneralTimetableResponse,
   TrainLiveBoardResponse,
@@ -29,6 +30,7 @@ import type {
   StationOfLineResponse,
   DailyStationTimetableResponse,
   LineTransferResponse,
+  AlertResponse,
 } from '../types/api.js';
 
 const API_BASE = 'https://tdx.transportdata.tw/api/basic';
@@ -39,6 +41,7 @@ const CACHE_TTL = {
   FARE: 7 * 24 * 60 * 60 * 1000, // 7 天（票價不常變動）
   STATIC: 24 * 60 * 60 * 1000, // 24 小時（路線等靜態資料）
   LINE_TRANSFER: 7 * 24 * 60 * 60 * 1000, // 7 天（轉乘資訊不常變動）
+  ALERT: 1 * 60 * 60 * 1000, // 1 小時（阻通資訊需較即時）
 };
 
 export interface ApiOptions {
@@ -276,6 +279,31 @@ export class TDXApiClient {
   }
 
   /**
+   * 取得多條路線的車站資料
+   * 用於支線判斷功能
+   */
+  async getMultipleStationsOfLine(
+    lineIds: string[],
+    options: ApiOptions = {}
+  ): Promise<StationOfLine[]> {
+    const results: StationOfLine[] = [];
+
+    for (const lineId of lineIds) {
+      try {
+        const stationOfLine = await this.getStationsOfLine(lineId, options);
+        if (stationOfLine) {
+          results.push(stationOfLine);
+        }
+      } catch {
+        // 忽略單一路線查詢失敗
+        continue;
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * 取得路線轉乘資訊
    * 用於查詢轉乘站的最少轉乘時間
    */
@@ -296,6 +324,31 @@ export class TDXApiClient {
 
     // 儲存快取
     this.cache.set(cacheKey, result, CACHE_TTL.LINE_TRANSFER);
+
+    return result;
+  }
+
+  /**
+   * 取得阻通資訊
+   * 包含路線停駛、異常狀態等資訊
+   */
+  async getAlerts(options: ApiOptions = {}): Promise<Alert[]> {
+    const cacheKey = 'alerts/all';
+
+    // 檢查快取
+    if (!options.skipCache) {
+      const cached = this.cache.get<Alert[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const url = `${API_BASE}/v3/Rail/TRA/Alert`;
+    const response = await this.request<AlertResponse>(url);
+    const result = response.Alerts ?? [];
+
+    // 儲存快取
+    this.cache.set(cacheKey, result, CACHE_TTL.ALERT);
 
     return result;
   }
