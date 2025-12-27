@@ -530,4 +530,22 @@ export class TDXApiClient {
   getCircuitBreakerMetrics() {
     return this.circuitBreaker.getMetrics();
   }
+
+  /**
+   * 取得 Circuit Breaker 當前狀態（用於健康檢查）
+   */
+  getCircuitBreakerState() {
+    return this.circuitBreaker.getState();
+  }
+
+  /**
+   * 取得所有內部服務實例（用於健康檢查）
+   */
+  getInternalServices() {
+    return {
+      auth: this.auth,
+      cache: this.cache,
+      circuitBreaker: this.circuitBreaker
+    };
+  }
 }
