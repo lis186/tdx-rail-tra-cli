@@ -11,10 +11,10 @@ export function simplifyTrainType(fullName: string): string {
   if (fullName === '普悠瑪(普悠瑪)') return '普悠瑪';
 
   // 自強系列
-  if (fullName.includes('EMU3000')) return '自強3000';
-  if (fullName.includes('DMU3100')) return '自強柴聯';
-  if (fullName.includes('商務專開')) return '商務專開';
-  if (fullName.includes('推拉式')) return '自強PP';
+  if (fullName.includes('EMU3000')) return '新自強';
+  if (fullName.includes('DMU3100')) return '自強';
+  if (fullName.includes('商務專開')) return '商務';
+  if (fullName.includes('推拉式')) return '自強';
 
   // 莒光系列 - 合併有/無身障
   if (fullName.startsWith('莒光')) return '莒光';

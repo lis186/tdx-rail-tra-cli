@@ -26,6 +26,7 @@ import {
 } from '../lib/train-filter.js';
 import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable, ODFare, TrainDelay, StationLiveBoard } from '../types/api.js';
 import { simplifyTrainType } from '../lib/train-type.js';
+import { padEnd } from '../lib/display-width.js';
 
 // 即時資訊緩衝時間（分鐘）- 往前查詢的範圍以捕捉延誤列車
 const LIVE_DELAY_BUFFER_MINUTES = 120;
@@ -890,18 +891,42 @@ function printTimetableTable(
     }
   }
 
+  // 定義欄位寬度
+  const COL = {
+    remaining: 8,
+    trainNo: 6,
+    trainType: 6,
+    time: 5,
+    delay: 6,
+    duration: 8,
+    platform: 4,
+    service: 4,
+  };
+
   // Print header based on whether we have live data
   if (liveData) {
-    if (hasPlatformInfo) {
-      console.log('剩餘\t\t車次\t車種\t預定\t延誤\t\t實際\t月臺\t服務');
-      console.log('─'.repeat(72));
-    } else {
-      console.log('剩餘\t\t車次\t車種\t預定\t延誤\t\t實際\t服務');
-      console.log('─'.repeat(64));
-    }
+    const header = [
+      padEnd('剩餘', COL.remaining),
+      padEnd('車次', COL.trainNo),
+      padEnd('車種', COL.trainType),
+      padEnd('預定', COL.time),
+      padEnd('延誤', COL.delay),
+      padEnd('實際', COL.time),
+    ];
+    if (hasPlatformInfo) header.push(padEnd('月臺', COL.platform));
+    header.push('服務');
+    console.log(header.join('  '));
+    console.log('─'.repeat(hasPlatformInfo ? 56 : 50));
   } else {
-    console.log('車次\t車種\t出發\t抵達\t行車時間\t服務');
-    console.log('─'.repeat(56));
+    console.log([
+      padEnd('車次', COL.trainNo),
+      padEnd('車種', COL.trainType),
+      padEnd('出發', COL.time),
+      padEnd('抵達', COL.time),
+      padEnd('時間', COL.duration),
+      '服務',
+    ].join('  '));
+    console.log('─'.repeat(44));
   }
 
   for (const train of timetables) {
@@ -910,7 +935,7 @@ function printTimetableTable(
 
     const departure = fromStop?.DepartureTime || '--:--';
     const arrival = toStop?.ArrivalTime || '--:--';
-    const trainType = simplifyTrainType(train.TrainInfo.TrainTypeName.Zh_tw).padEnd(6, '　');
+    const trainType = simplifyTrainType(train.TrainInfo.TrainTypeName.Zh_tw);
     const trainNo = train.TrainInfo.TrainNo;
 
     // 服務標示
@@ -928,16 +953,19 @@ function printTimetableTable(
       const actualDep = live?.actualDeparture || departure;
       const remaining = live ? formatRemainingTime(live.remainingMinutes) : '--';
 
+      const row = [
+        padEnd(remaining, COL.remaining),
+        padEnd(trainNo, COL.trainNo),
+        padEnd(trainType, COL.trainType),
+        padEnd(departure, COL.time),
+        padEnd(delayStr, COL.delay),
+        padEnd(actualDep, COL.time),
+      ];
       if (hasPlatformInfo) {
-        const platform = live?.platform || '--';
-        console.log(
-          `${remaining.padEnd(8)}\t${trainNo}\t${trainType}\t${departure}\t${delayStr.padEnd(8)}\t${actualDep}\t${platform}\t${serviceStr}`
-        );
-      } else {
-        console.log(
-          `${remaining.padEnd(8)}\t${trainNo}\t${trainType}\t${departure}\t${delayStr.padEnd(8)}\t${actualDep}\t${serviceStr}`
-        );
+        row.push(padEnd(live?.platform || '--', COL.platform));
       }
+      row.push(serviceStr);
+      console.log(row.join('  '));
     } else {
       // 無即時資訊
       // 計算行車時間
@@ -949,12 +977,17 @@ function printTimetableTable(
         if (minutes < 0) minutes += 24 * 60;
         const hours = Math.floor(minutes / 60);
         const mins = minutes % 60;
-        durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+        durationStr = hours > 0 ? `${hours}h${mins}m` : `${mins}m`;
       }
 
-      console.log(
-        `${trainNo}\t${trainType}\t${departure}\t${arrival}\t${durationStr.padEnd(8)}\t${serviceStr}`
-      );
+      console.log([
+        padEnd(trainNo, COL.trainNo),
+        padEnd(trainType, COL.trainType),
+        padEnd(departure, COL.time),
+        padEnd(arrival, COL.time),
+        padEnd(durationStr, COL.duration),
+        serviceStr,
+      ].join('  '));
     }
   }
 
