@@ -881,16 +881,23 @@ function printTimetableTable(
 
   // Create live data lookup
   const liveMap = new Map<string, LiveInfo>();
+  let hasPlatformInfo = false;
   if (liveData) {
     for (const live of liveData) {
       liveMap.set(live.trainNo, live);
+      if (live.platform) hasPlatformInfo = true;
     }
   }
 
   // Print header based on whether we have live data
   if (liveData) {
-    console.log('剩餘\t\t車次\t車種\t\t預定\t\t延誤\t\t實際\t\t月臺\t服務');
-    console.log('─'.repeat(100));
+    if (hasPlatformInfo) {
+      console.log('剩餘\t\t車次\t車種\t\t預定\t\t延誤\t\t實際\t\t月臺\t服務');
+      console.log('─'.repeat(100));
+    } else {
+      console.log('剩餘\t\t車次\t車種\t\t預定\t\t延誤\t\t實際\t\t服務');
+      console.log('─'.repeat(88));
+    }
   } else {
     console.log('車次\t車種\t\t出發\t\t抵達\t\t行車時間\t服務');
     console.log('─'.repeat(80));
@@ -919,11 +926,17 @@ function printTimetableTable(
         : '--';
       const actualDep = live?.actualDeparture || departure;
       const remaining = live ? formatRemainingTime(live.remainingMinutes) : '--';
-      const platform = live?.platform || '--';
 
-      console.log(
-        `${remaining.padEnd(8)}\t${trainNo}\t${trainType}\t${departure}\t\t${delayStr.padEnd(8)}\t${actualDep}\t\t${platform.padEnd(4)}\t${serviceStr}`
-      );
+      if (hasPlatformInfo) {
+        const platform = live?.platform || '--';
+        console.log(
+          `${remaining.padEnd(8)}\t${trainNo}\t${trainType}\t${departure}\t\t${delayStr.padEnd(8)}\t${actualDep}\t\t${platform.padEnd(4)}\t${serviceStr}`
+        );
+      } else {
+        console.log(
+          `${remaining.padEnd(8)}\t${trainNo}\t${trainType}\t${departure}\t\t${delayStr.padEnd(8)}\t${actualDep}\t\t${serviceStr}`
+        );
+      }
     } else {
       // 無即時資訊
       // 計算行車時間
