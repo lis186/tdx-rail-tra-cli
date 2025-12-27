@@ -4,6 +4,7 @@
  */
 
 import { ofetch } from 'ofetch';
+import * as metrics from '../lib/metrics.js';
 import type { TokenResponse, CachedToken } from '../types/auth.js';
 
 const TOKEN_ENDPOINT = 'https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token';
@@ -35,8 +36,13 @@ export class AuthService {
   async getToken(): Promise<string> {
     // 1️⃣ 檢查快取是否有效
     if (this.isTokenValid()) {
+      // 🔧 記錄快取命中 (P2 改善)
+      metrics.recordAuthCacheHit();
       return this.cachedToken!.accessToken;
     }
+
+    // 記錄快取未命中
+    metrics.recordAuthCacheMiss();
 
     // 2️⃣ 檢查是否有正在進行的請求
     if (this.inFlightTokenPromise) {
@@ -63,21 +69,33 @@ export class AuthService {
   private async requestTokenWithCache(): Promise<string> {
     // 再檢查一次快取（有可能其他請求在我們等待時已經更新了）
     if (this.isTokenValid()) {
+      metrics.recordAuthCacheHit();
       return this.cachedToken!.accessToken;
     }
 
     // 請求新的 token
-    const response = await this.requestToken();
+    try {
+      const response = await this.requestToken();
 
-    // 計算過期時間（提前 buffer 秒過期）
-    const expiresAt = Date.now() + (response.expires_in * 1000) - TOKEN_EXPIRY_BUFFER_MS;
+      // 計算過期時間（提前 buffer 秒過期）
+      const expiresAt = Date.now() + (response.expires_in * 1000) - TOKEN_EXPIRY_BUFFER_MS;
 
-    this.cachedToken = {
-      accessToken: response.access_token,
-      expiresAt,
-    };
+      this.cachedToken = {
+        accessToken: response.access_token,
+        expiresAt,
+      };
 
-    return this.cachedToken.accessToken;
+      // 🔧 記錄 token 請求成功 (P2 改善)
+      metrics.recordAuthTokenRequest(true);
+
+      return this.cachedToken.accessToken;
+    } catch (error) {
+      // 🔧 記錄 token 請求失敗 (P2 改善)
+      const reason = error instanceof Error ? error.message : 'unknown';
+      metrics.recordAuthTokenRequest(false);
+      metrics.recordAuthFailure(reason);
+      throw error;
+    }
   }
 
   /**

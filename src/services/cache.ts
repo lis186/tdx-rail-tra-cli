@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import * as metrics from '../lib/metrics.js';
 
 const DEFAULT_CACHE_DIR = path.join(os.homedir(), '.cache', 'tdx-tra');
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000; // 24 小時
@@ -72,6 +73,8 @@ export class CacheService {
 
     try {
       if (!fs.existsSync(filePath)) {
+        // 🔧 記錄快取未命中 (P2 改善)
+        metrics.recordCacheMiss(this.extractCachePattern(key));
         return null;
       }
 
@@ -82,11 +85,17 @@ export class CacheService {
       if (Date.now() > entry.expiresAt) {
         // 過期則刪除
         this.delete(key);
+        // 🔧 記錄快取過期 (P2 改善)
+        metrics.recordCacheExpiration();
+        metrics.recordCacheMiss(this.extractCachePattern(key));
         return null;
       }
 
+      // 🔧 記錄快取命中 (P2 改善)
+      metrics.recordCacheHit(this.extractCachePattern(key));
       return entry.data;
     } catch {
+      metrics.recordCacheMiss(this.extractCachePattern(key));
       return null;
     }
   }
@@ -171,6 +180,18 @@ export class CacheService {
    */
   getCacheDir(): string {
     return this.cacheDir;
+  }
+
+  /**
+   * 從快取 key 提取模式（用於指標標籤）
+   */
+  private extractCachePattern(key: string): string {
+    // 例：timetable/od-1000-4400-2025-12-27 → timetable/od
+    const parts = key.split('/');
+    if (parts.length > 1) {
+      return `${parts[0]}/${parts[1].split('-')[0]}`;
+    }
+    return parts[0];
   }
 }
 

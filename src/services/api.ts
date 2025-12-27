@@ -10,6 +10,9 @@ import { RateLimiter } from './rate-limiter.js';
 import { CircuitBreaker } from './circuit-breaker.js';
 import { retry, isRetryableStatus } from './retry.js';
 import { loggers } from '../lib/logger.js';
+import * as metrics from '../lib/metrics.js';
+// 🔧 P2 改善：導出 Prometheus 指標
+export { getMetricsSnapshot, getMetricsContentType } from '../lib/metrics.js';
 // 🔧 P1 改善：導出新的重試策略 (可選使用)
 export { retryWithExponentialBackoff, createApiRetryOptions, defaultShouldRetry } from '../lib/retry-strategy.js';
 export type { RetryOptions, RetryStatistics } from '../lib/retry-strategy.js';
@@ -504,10 +507,18 @@ export class TDXApiClient {
         statusCode: 200
       });
 
+      // 🔧 記錄 Prometheus 指標 (P2 改善)
+      metrics.recordApiRequest(
+        'GET',
+        this.extractEndpointFromUrl(url),
+        200,
+        duration
+      );
+
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
-      const statusCode = (error as any)?.statusCode || (error as any)?.status;
+      const statusCode = (error as any)?.statusCode || (error as any)?.status || 500;
 
       loggers.api.error(
         'API request failed',
@@ -518,6 +529,14 @@ export class TDXApiClient {
           duration,
           statusCode
         }
+      );
+
+      // 🔧 記錄 Prometheus 指標 (P2 改善)
+      metrics.recordApiRequest(
+        'GET',
+        this.extractEndpointFromUrl(url),
+        statusCode,
+        duration
       );
 
       throw error;
@@ -547,5 +566,23 @@ export class TDXApiClient {
       cache: this.cache,
       circuitBreaker: this.circuitBreaker
     };
+  }
+
+  /**
+   * 從 URL 中提取端點路徑（用於指標標籤）
+   */
+  private extractEndpointFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      // 簡化路徑：去掉版本號，保留主要端點
+      // 例：/api/basic/v3/Rail/TRA/Station → /Rail/TRA/Station
+      return pathname
+        .replace(/^\/api\/basic\/v\d+\//, '/')
+        .replace(/\/\d+$/, '') // 去掉 ID
+        .substring(0, 50); // 限制長度
+    } catch {
+      return '/unknown';
+    }
   }
 }

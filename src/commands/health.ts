@@ -25,7 +25,8 @@ healthCommand
     try {
       // 讀取配置
       const configService = new ConfigService();
-      const { clientId, clientSecret } = configService.getAuthConfig();
+      const clientId = configService.getClientId();
+      const clientSecret = configService.getClientSecret();
 
       if (!clientId || !clientSecret) {
         console.error('❌ 未設定 TDX API 認證資訊');
