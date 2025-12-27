@@ -24,7 +24,7 @@ import {
   parseTrainTypeInput,
   type TrainEntry,
 } from '../lib/train-filter.js';
-import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable, ODFare, TrainDelay } from '../types/api.js';
+import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable, ODFare, TrainDelay, StationLiveBoard } from '../types/api.js';
 
 // 即時資訊緩衝時間（分鐘）- 往前查詢的範圍以捕捉延誤列車
 const LIVE_DELAY_BUFFER_MINUTES = 120;
@@ -243,6 +243,7 @@ timetableCommand
         actualDeparture?: string;
         liveStatus?: string;
         remainingMinutes?: number;
+        platform?: string;
       };
 
       let trainEntries: ExtendedTrainEntry[] = timetables.map((train) => {
@@ -327,6 +328,26 @@ timetableCommand
           trainEntries = trainEntries.filter((entry) =>
             entry.remainingMinutes === undefined || entry.remainingMinutes >= -2
           );
+
+          // 取得起站即時看板以獲取月臺資訊
+          try {
+            const liveBoards = await api.getStationLiveBoard(fromStation.id);
+            const platformMap = new Map<string, string>();
+            for (const board of liveBoards) {
+              if (board.Platform) {
+                platformMap.set(board.TrainNo, board.Platform);
+              }
+            }
+            // 合併月臺資訊
+            for (const entry of trainEntries) {
+              const platform = platformMap.get(entry.trainNo);
+              if (platform) {
+                entry.platform = platform;
+              }
+            }
+          } catch {
+            // 月臺資訊查詢失敗，不影響主流程
+          }
         } catch {
           // 即時資訊查詢失敗，繼續使用靜態時刻表
           if (format !== 'json') {
@@ -386,6 +407,7 @@ timetableCommand
                 actualDeparture: entry.actualDeparture || entry.departure,
                 status: entry.liveStatus || '未知',
                 remainingMinutes: entry.remainingMinutes ?? null,
+                platform: entry.platform || null,
               };
             }
           }
@@ -434,6 +456,7 @@ timetableCommand
               actualDeparture: e.actualDeparture || e.departure,
               status: e.liveStatus || '未知',
               remainingMinutes: e.remainingMinutes ?? null,
+              platform: e.platform || null,
             }))
           : undefined;
         printTimetableTable(filteredTimetables, fromStation, toStation, queryDate, fareData, liveData, currentTime);
@@ -810,6 +833,7 @@ interface LiveInfo {
   actualDeparture: string;
   status: string;
   remainingMinutes: number | null;
+  platform: string | null;
 }
 
 /**
@@ -865,8 +889,8 @@ function printTimetableTable(
 
   // Print header based on whether we have live data
   if (liveData) {
-    console.log('剩餘\t\t車次\t車種\t\t預定\t\t延誤\t\t實際\t\t服務');
-    console.log('─'.repeat(90));
+    console.log('剩餘\t\t車次\t車種\t\t預定\t\t延誤\t\t實際\t\t月臺\t服務');
+    console.log('─'.repeat(100));
   } else {
     console.log('車次\t車種\t\t出發\t\t抵達\t\t行車時間\t服務');
     console.log('─'.repeat(80));
@@ -895,9 +919,10 @@ function printTimetableTable(
         : '--';
       const actualDep = live?.actualDeparture || departure;
       const remaining = live ? formatRemainingTime(live.remainingMinutes) : '--';
+      const platform = live?.platform || '--';
 
       console.log(
-        `${remaining.padEnd(8)}\t${trainNo}\t${trainType}\t${departure}\t\t${delayStr.padEnd(8)}\t${actualDep}\t\t${serviceStr}`
+        `${remaining.padEnd(8)}\t${trainNo}\t${trainType}\t${departure}\t\t${delayStr.padEnd(8)}\t${actualDep}\t\t${platform.padEnd(4)}\t${serviceStr}`
       );
     } else {
       // 無即時資訊

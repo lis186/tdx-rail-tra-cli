@@ -468,7 +468,7 @@ tra timetable daily 台北 桃園 --tpass --bike --depart-after 08:00 --depart-b
 # 包含票價資訊
 tra timetable daily 台北 高雄 --with-fare
 
-# 包含即時延誤資訊（擴大查詢範圍以捕捉延誤列車）
+# 包含即時資訊（延誤、月臺）
 tra timetable daily 松山 板橋 --depart-after now --with-live
 
 # 完整查詢：特定時間 + 車種 + 服務 + 票價
