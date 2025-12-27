@@ -26,6 +26,7 @@ import { BranchLineResolver } from '../lib/branch-line.js';
 import { StationTimetableMatcher } from '../lib/station-timetable-matcher.js';
 import { AlertService, NormalizedAlert } from '../services/alert.js';
 import type { DailyTrainTimetable } from '../types/api.js';
+import { simplifyTrainType } from '../lib/train-type.js';
 
 // 支線 Line ID 列表
 const BRANCH_LINE_IDS = ['PX', 'SA', 'JJ', 'NW', 'LJ', 'SH'];
@@ -74,7 +75,7 @@ function timetableToSegment(
 
   return {
     trainNo: timetable.TrainInfo.TrainNo,
-    trainType: timetable.TrainInfo.TrainTypeName.Zh_tw,
+    trainType: simplifyTrainType(timetable.TrainInfo.TrainTypeName.Zh_tw),
     trainTypeCode: timetable.TrainInfo.TrainTypeCode,
     fromStation: fromStationId,
     fromStationName: fromStop.StationName.Zh_tw,

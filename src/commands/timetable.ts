@@ -25,34 +25,10 @@ import {
   type TrainEntry,
 } from '../lib/train-filter.js';
 import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable, ODFare, TrainDelay, StationLiveBoard } from '../types/api.js';
+import { simplifyTrainType } from '../lib/train-type.js';
 
 // 即時資訊緩衝時間（分鐘）- 往前查詢的範圍以捕捉延誤列車
 const LIVE_DELAY_BUFFER_MINUTES = 120;
-
-/**
- * 簡化車種名稱（用於表格顯示）
- */
-function simplifyTrainType(fullName: string): string {
-  // 移除重複描述
-  if (fullName === '普悠瑪(普悠瑪)') return '普悠瑪';
-
-  // 自強系列
-  if (fullName.includes('EMU3000')) return '自強3000';
-  if (fullName.includes('DMU3100')) return '自強柴聯';
-  if (fullName.includes('商務專開')) return '商務專開';
-  if (fullName.includes('推拉式')) return '自強PP';
-
-  // 莒光系列 - 合併有/無身障
-  if (fullName.startsWith('莒光')) return '莒光';
-
-  // 區間系列
-  if (fullName === '區間快') return '區間快';
-  if (fullName === '區間') return '區間';
-
-  // 其他情況：取括號前的部分
-  const match = fullName.match(/^([^(]+)/);
-  return match ? match[1].trim() : fullName;
-}
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -990,7 +966,7 @@ function printTimetableTable(
  */
 function printTrainTimetableTable(timetable: GeneralTrainTimetable): void {
   const info = timetable.TrainInfo;
-  console.log(`\n車次 ${info.TrainNo} - ${info.TrainTypeName.Zh_tw}`);
+  console.log(`\n車次 ${info.TrainNo} - ${simplifyTrainType(info.TrainTypeName.Zh_tw)}`);
   console.log(`${info.StartingStationName.Zh_tw} → ${info.EndingStationName.Zh_tw}`);
   console.log(`方向：${info.Direction === 0 ? '順行（南下）' : '逆行（北上）'}\n`);
 

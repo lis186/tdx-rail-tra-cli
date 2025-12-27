@@ -14,6 +14,7 @@ import {
 } from '../data/stations.js';
 import type { TrainLiveBoard, TrainDelay, StationLiveBoard } from '../types/api.js';
 import { runWithWatch } from '../utils/watch.js';
+import { simplifyTrainType } from '../lib/train-type.js';
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -169,7 +170,7 @@ function formatLiveBoardForJson(liveBoard: TrainLiveBoard): {
 } {
   return {
     trainNo: liveBoard.TrainNo,
-    trainType: liveBoard.TrainTypeName.Zh_tw,
+    trainType: simplifyTrainType(liveBoard.TrainTypeName.Zh_tw),
     currentStation: {
       id: liveBoard.StationID,
       name: liveBoard.StationName.Zh_tw,
@@ -211,7 +212,7 @@ function formatDelayStatus(delayTime: number): string {
  */
 function printLiveBoard(liveBoard: TrainLiveBoard): void {
   console.log(`\n車次 ${liveBoard.TrainNo} 即時資訊\n`);
-  console.log(`車種：${liveBoard.TrainTypeName.Zh_tw}`);
+  console.log(`車種：${simplifyTrainType(liveBoard.TrainTypeName.Zh_tw)}`);
   console.log(`目前位置：${liveBoard.StationName.Zh_tw}`);
   console.log(`延誤狀態：${formatDelayStatus(liveBoard.DelayTime)}`);
   console.log(`更新時間：${liveBoard.UpdateTime}`);
@@ -317,7 +318,7 @@ function formatStationLiveBoardForJson(board: StationLiveBoard): {
 } {
   return {
     trainNo: board.TrainNo,
-    trainType: board.TrainTypeName.Zh_tw,
+    trainType: simplifyTrainType(board.TrainTypeName.Zh_tw),
     endingStation: board.EndingStationName.Zh_tw,
     direction: board.Direction === 0 ? '順行' : '逆行',
     arrivalTime: board.ScheduleArrivalTime || null,
@@ -343,20 +344,34 @@ function printStationLiveBoard(
     return;
   }
 
-  console.log('車次\t車種\t\t終點站\t\t月臺\t到站\t\t發車\t\t狀態');
-  console.log('─'.repeat(88));
+  // 檢查是否有任何班次有月臺資訊
+  const hasPlatformInfo = liveBoards.some((b) => b.Platform);
+
+  if (hasPlatformInfo) {
+    console.log('車次\t車種\t終點站\t月臺\t到站\t\t發車\t\t狀態');
+    console.log('─'.repeat(72));
+  } else {
+    console.log('車次\t車種\t終點站\t到站\t\t發車\t\t狀態');
+    console.log('─'.repeat(64));
+  }
 
   for (const board of liveBoards) {
-    const trainType = board.TrainTypeName.Zh_tw.padEnd(6, '　');
-    const endStation = board.EndingStationName.Zh_tw.padEnd(4, '　');
-    const platform = (board.Platform || '--').padEnd(4);
+    const trainType = simplifyTrainType(board.TrainTypeName.Zh_tw).padEnd(5, '　');
+    const endStation = board.EndingStationName.Zh_tw.padEnd(3, '　');
     const arrival = board.ScheduleArrivalTime || '--:--';
     const departure = board.ScheduleDepartureTime || '--:--';
     const status = formatDelayStatus(board.DelayTime);
 
-    console.log(
-      `${board.TrainNo}\t${trainType}\t\t${endStation}\t\t${platform}\t${arrival}\t\t${departure}\t\t${status}`
-    );
+    if (hasPlatformInfo) {
+      const platform = (board.Platform || '--').padEnd(4);
+      console.log(
+        `${board.TrainNo}\t${trainType}\t${endStation}\t${platform}\t${arrival}\t\t${departure}\t\t${status}`
+      );
+    } else {
+      console.log(
+        `${board.TrainNo}\t${trainType}\t${endStation}\t${arrival}\t\t${departure}\t\t${status}`
+      );
+    }
   }
 
   console.log(`\n共 ${liveBoards.length} 班次`);

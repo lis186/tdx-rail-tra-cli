@@ -38,6 +38,8 @@ const FARE_CLASSES: Record<number, string> = {
   3: '敬老',
   4: '愛心',
   5: '學生',
+  6: '團體',
+  7: '愛心陪伴',
 };
 
 /**
