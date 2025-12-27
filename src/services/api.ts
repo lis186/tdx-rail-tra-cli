@@ -9,9 +9,13 @@ import { CacheService } from './cache.js';
 import { RateLimiter } from './rate-limiter.js';
 import { CircuitBreaker } from './circuit-breaker.js';
 import { retry, isRetryableStatus } from './retry.js';
+import { loggers } from '../lib/logger.js';
 // 🔧 P1 改善：導出新的重試策略 (可選使用)
 export { retryWithExponentialBackoff, createApiRetryOptions, defaultShouldRetry } from '../lib/retry-strategy.js';
 export type { RetryOptions, RetryStatistics } from '../lib/retry-strategy.js';
+// 🔧 P1 改善：導出日誌系統 (結構化日誌)
+export { loggers, StructuredLogger, createRequestContext, generateSpanId } from '../lib/logger.js';
+export type { LogContext, LogEntry, LogLevel } from '../lib/logger.js';
 import type {
   DailyTrainTimetable,
   GeneralTrainTimetable,
@@ -418,69 +422,106 @@ export class TDXApiClient {
 
   /**
    * 發送帶認證的 API 請求
-   * 包含 Circuit Breaker、Rate Limiting 和 Retry 機制 (P1 改善)
+   * 包含 Circuit Breaker、Rate Limiting、Retry 和 Logging 機制 (P1 改善)
    */
   private async request<T>(url: string, query?: Record<string, string>): Promise<T> {
-    // 🔧 使用 Circuit Breaker 保護 API 請求 (P1 改善)
-    return this.circuitBreaker.execute(() =>
-      // 使用 retry 包裝請求，處理暫時性錯誤
-      retry(
-        async () => {
-          // 取得 rate limit token
-          await this.rateLimiter.acquire();
+    const startTime = Date.now();
+    const requestId = loggers.api.getCurrentRequestId();
 
-          // 取得 auth token
-          const token = await this.auth.getToken();
+    loggers.api.debug('API request started', {
+      requestId,
+      url,
+      query
+    });
 
-          return ofetch<T>(url, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            query: query
-              ? {
-                  ...query,
-                  $format: 'JSON',
-                }
-              : {
-                  $format: 'JSON',
-                },
-          });
-        },
-        {
-          maxRetries: 3,
-          baseDelayMs: 1000,
-          maxDelayMs: 10000,
-          shouldRetry: (error: unknown) => {
-            // 處理 FetchError
-            if (error instanceof FetchError) {
-              const status = error.statusCode ?? error.status;
-              if (status) {
-                // 401 表示 token 過期，清除快取後重試
-                if (status === 401) {
-                  this.auth.clearCache();
-                  return true;
-                }
-                return isRetryableStatus(status);
-              }
-            }
+    try {
+      // 🔧 使用 Circuit Breaker 保護 API 請求 (P1 改善)
+      const result = await this.circuitBreaker.execute(() =>
+        // 使用 retry 包裝請求，處理暫時性錯誤
+        retry(
+          async () => {
+            // 取得 rate limit token
+            await this.rateLimiter.acquire();
 
-            // 處理一般 Error（網路錯誤等）
-            if (error instanceof Error) {
-              const message = error.message.toLowerCase();
-              return (
-                message.includes('network') ||
-                message.includes('timeout') ||
-                message.includes('econnreset') ||
-                message.includes('socket hang up') ||
-                message.includes('fetch failed')
-              );
-            }
+            // 取得 auth token
+            const token = await this.auth.getToken();
 
-            return false;
+            return ofetch<T>(url, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              query: query
+                ? {
+                    ...query,
+                    $format: 'JSON',
+                  }
+                : {
+                    $format: 'JSON',
+                  },
+            });
           },
+          {
+            maxRetries: 3,
+            baseDelayMs: 1000,
+            maxDelayMs: 10000,
+            shouldRetry: (error: unknown) => {
+              // 處理 FetchError
+              if (error instanceof FetchError) {
+                const status = error.statusCode ?? error.status;
+                if (status) {
+                  // 401 表示 token 過期，清除快取後重試
+                  if (status === 401) {
+                    this.auth.clearCache();
+                    return true;
+                  }
+                  return isRetryableStatus(status);
+                }
+              }
+
+              // 處理一般 Error（網路錯誤等）
+              if (error instanceof Error) {
+                const message = error.message.toLowerCase();
+                return (
+                  message.includes('network') ||
+                  message.includes('timeout') ||
+                  message.includes('econnreset') ||
+                  message.includes('socket hang up') ||
+                  message.includes('fetch failed')
+                );
+              }
+
+              return false;
+            },
+          }
+        )
+      );
+
+      const duration = Date.now() - startTime;
+      loggers.api.info('API request completed', {
+        requestId,
+        url,
+        duration,
+        statusCode: 200
+      });
+
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const statusCode = (error as any)?.statusCode || (error as any)?.status;
+
+      loggers.api.error(
+        'API request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          url,
+          duration,
+          statusCode
         }
-      )
-    );
+      );
+
+      throw error;
+    }
   }
 
   /**
