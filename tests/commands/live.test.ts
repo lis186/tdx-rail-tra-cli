@@ -101,10 +101,32 @@ describe('Live Command', () => {
   });
 
   describe('getTrainDelays', () => {
+    // Mock data matching real TDX API response structure
     const mockDelays: TrainDelay[] = [
-      { TrainNo: '123', DelayTime: 5, UpdateTime: '2025-01-15T08:30:00+08:00' },
-      { TrainNo: '456', DelayTime: 10, UpdateTime: '2025-01-15T08:30:00+08:00' },
-      { TrainNo: '789', DelayTime: 0, UpdateTime: '2025-01-15T08:30:00+08:00' },
+      {
+        TrainNo: '123',
+        StationID: '1000',
+        StationName: { Zh_tw: '臺北', En: 'Taipei' },
+        DelayTime: 5,
+        SrcUpdateTime: '2025-01-15T08:29:00+08:00',
+        UpdateTime: '2025-01-15T08:30:00+08:00',
+      },
+      {
+        TrainNo: '456',
+        StationID: '1020',
+        StationName: { Zh_tw: '板橋', En: 'Banqiao' },
+        DelayTime: 10,
+        SrcUpdateTime: '2025-01-15T08:29:00+08:00',
+        UpdateTime: '2025-01-15T08:30:00+08:00',
+      },
+      {
+        TrainNo: '789',
+        StationID: '3360',
+        StationName: { Zh_tw: '臺中', En: 'Taichung' },
+        DelayTime: 0,
+        SrcUpdateTime: '2025-01-15T08:29:00+08:00',
+        UpdateTime: '2025-01-15T08:30:00+08:00',
+      },
     ];
 
     it('should fetch delays for multiple trains', async () => {

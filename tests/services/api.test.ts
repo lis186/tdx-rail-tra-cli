@@ -279,9 +279,24 @@ describe('TDXApiClient', () => {
   });
 
   describe('getTrainDelays', () => {
+    // Mock data matching real TDX API response structure
     const mockDelays: TrainDelay[] = [
-      { TrainNo: '123', DelayTime: 5, UpdateTime: '2025-01-15T08:30:00+08:00' },
-      { TrainNo: '456', DelayTime: 10, UpdateTime: '2025-01-15T08:30:00+08:00' },
+      {
+        TrainNo: '123',
+        StationID: '1000',
+        StationName: { Zh_tw: '臺北', En: 'Taipei' },
+        DelayTime: 5,
+        SrcUpdateTime: '2025-01-15T08:29:00+08:00',
+        UpdateTime: '2025-01-15T08:30:00+08:00',
+      },
+      {
+        TrainNo: '456',
+        StationID: '1020',
+        StationName: { Zh_tw: '板橋', En: 'Banqiao' },
+        DelayTime: 10,
+        SrcUpdateTime: '2025-01-15T08:29:00+08:00',
+        UpdateTime: '2025-01-15T08:30:00+08:00',
+      },
     ];
 
     it('should fetch delays for multiple trains', async () => {
@@ -309,15 +324,19 @@ describe('TDXApiClient', () => {
   });
 
   describe('getODFare', () => {
+    // Mock data matching real TDX API response structure
     const mockFare: ODFare = {
       OriginStationID: '1000',
       OriginStationName: { Zh_tw: '臺北', En: 'Taipei' },
       DestinationStationID: '4400',
       DestinationStationName: { Zh_tw: '高雄', En: 'Kaohsiung' },
+      Direction: 1,
+      TrainType: 7,
       Fares: [
-        { TicketType: 1, FareClass: 1, Price: 843 },
-        { TicketType: 1, FareClass: 2, Price: 650 },
+        { TicketType: 1, FareClass: 1, CabinClass: 1, Price: 843 },
+        { TicketType: 1, FareClass: 3, CabinClass: 1, Price: 650 },
       ],
+      TravelDistance: 371400,
     };
 
     const mockResponse = {

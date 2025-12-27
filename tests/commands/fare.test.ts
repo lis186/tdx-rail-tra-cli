@@ -40,16 +40,20 @@ describe('Fare Command', () => {
   });
 
   describe('getODFare', () => {
+    // Mock data matching real TDX API response structure
     const mockFare: ODFare = {
       OriginStationID: '1000',
       OriginStationName: { Zh_tw: '臺北', En: 'Taipei' },
       DestinationStationID: '4400',
       DestinationStationName: { Zh_tw: '高雄', En: 'Kaohsiung' },
+      Direction: 1,
+      TrainType: 7,
       Fares: [
-        { TicketType: 1, FareClass: 1, Price: 843 },
-        { TicketType: 1, FareClass: 2, Price: 422 },
-        { TicketType: 3, FareClass: 1, Price: 738 },
+        { TicketType: 1, FareClass: 1, CabinClass: 1, Price: 843 },
+        { TicketType: 1, FareClass: 3, CabinClass: 1, Price: 422 },
+        { TicketType: 3, FareClass: 1, CabinClass: 1, Price: 738 },
       ],
+      TravelDistance: 371400,
     };
 
     const mockResponse = {

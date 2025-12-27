@@ -107,7 +107,13 @@ export interface TrainLiveBoard {
  */
 export interface TrainDelay {
   TrainNo: string;
+  StationID: string;
+  StationName: {
+    Zh_tw: string;
+    En: string;
+  };
   DelayTime: number;
+  SrcUpdateTime: string;  // 資料來源更新時間
   UpdateTime: string;
 }
 
@@ -125,11 +131,15 @@ export interface ODFare {
     Zh_tw: string;
     En: string;
   };
+  Direction: number;       // 0: 順行, 1: 逆行
+  TrainType: number;       // 車種代碼
   Fares: Array<{
-    TicketType: number;
-    FareClass: number;
+    TicketType: number;    // 票種: 1=單程, 2=來回, 3=定期
+    FareClass: number;     // 票價類別: 1=全票, 3=孩童, 4=敬老, 5=愛心, 7=學生
+    CabinClass: number;    // 艙等: 1=標準, 2=商務
     Price: number;
   }>;
+  TravelDistance: number;  // 行駛距離 (公尺)
 }
 
 /**
@@ -238,6 +248,7 @@ export interface Line {
     En: string;
   };
   IsBranch?: boolean;
+  LineGroup?: string;  // 路線群組代碼
 }
 
 /**

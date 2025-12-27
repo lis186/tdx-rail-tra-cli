@@ -40,22 +40,26 @@ describe('Lines Command', () => {
   });
 
   describe('getLines', () => {
+    // Mock data matching real TDX API response structure
     const mockLines: Line[] = [
       {
         LineID: 'WL',
         LineName: { Zh_tw: '西部幹線', En: 'Western Line' },
         IsBranch: false,
+        LineGroup: 'WL',
       },
       {
         LineID: 'TL',
         LineName: { Zh_tw: '台東線', En: 'Taitung Line' },
         LineSectionName: { Zh_tw: '花東段', En: 'Hualien-Taitung Section' },
         IsBranch: false,
+        LineGroup: 'TL',
       },
       {
         LineID: 'PX',
         LineName: { Zh_tw: '平溪線', En: 'Pingxi Line' },
         IsBranch: true,
+        LineGroup: 'PX',
       },
     ];
 
@@ -118,23 +122,24 @@ describe('Lines Command', () => {
   });
 
   describe('getStationsOfLine', () => {
+    // Mock data matching real TDX API response structure (Sequence starts from 0)
     const mockStationOfLine: StationOfLine = {
       LineID: 'WL',
       Stations: [
         {
-          Sequence: 1,
+          Sequence: 0,
           StationID: '0900',
           StationName: { Zh_tw: '基隆', En: 'Keelung' },
           CumulativeDistance: 0,
         },
         {
-          Sequence: 2,
+          Sequence: 1,
           StationID: '1000',
           StationName: { Zh_tw: '臺北', En: 'Taipei' },
           CumulativeDistance: 28800,
         },
         {
-          Sequence: 3,
+          Sequence: 2,
           StationID: '1080',
           StationName: { Zh_tw: '桃園', En: 'Taoyuan' },
           CumulativeDistance: 58600,
@@ -200,9 +205,9 @@ describe('Lines Command', () => {
 
       const result = await apiClient.getStationsOfLine('WL');
 
-      expect(result?.Stations[0].Sequence).toBe(1);
-      expect(result?.Stations[1].Sequence).toBe(2);
-      expect(result?.Stations[2].Sequence).toBe(3);
+      expect(result?.Stations[0].Sequence).toBe(0);
+      expect(result?.Stations[1].Sequence).toBe(1);
+      expect(result?.Stations[2].Sequence).toBe(2);
     });
 
     it('should return stations with distance info', async () => {
