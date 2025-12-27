@@ -22,7 +22,13 @@ import {
   type JourneyOption,
   type TransferLegData,
 } from '../lib/journey-planner.js';
+import { BranchLineResolver } from '../lib/branch-line.js';
+import { StationTimetableMatcher } from '../lib/station-timetable-matcher.js';
+import { AlertService, NormalizedAlert } from '../services/alert.js';
 import type { DailyTrainTimetable } from '../types/api.js';
+
+// 支線 Line ID 列表
+const BRANCH_LINE_IDS = ['PX', 'SA', 'JJ', 'NW', 'LJ', 'SH'];
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -95,34 +101,57 @@ function formatDuration(minutes: number): string {
 /**
  * 篩選有效的轉乘站（介於起訖站之間）
  * 使用 station ID 的數值順序來判斷
+ * 並支援支線轉乘站
  */
 function filterTransferStations(
   fromStationId: string,
-  toStationId: string
+  toStationId: string,
+  branchLineResolver?: BranchLineResolver
 ): string[] {
+  const candidates = new Set<string>();
+
+  // 1. 原有邏輯：主幹線轉乘站（基於 ID 範圍）
   const allTransfers = getTransferStations();
   const fromId = parseInt(fromStationId, 10);
   const toId = parseInt(toStationId, 10);
-
-  // 判斷方向
   const isNorthbound = fromId > toId;
 
-  // 篩選介於起訖站之間的轉乘站
-  return allTransfers.filter((stationId) => {
+  for (const stationId of allTransfers) {
     const id = parseInt(stationId, 10);
 
     // 排除起訖站本身
     if (stationId === fromStationId || stationId === toStationId) {
-      return false;
+      continue;
     }
 
-    // 檢查是否在路線上（簡化邏輯：用 ID 範圍判斷）
+    // 檢查是否在路線上（用 ID 範圍判斷）
     if (isNorthbound) {
-      return id < fromId && id > toId;
+      if (id < fromId && id > toId) {
+        candidates.add(stationId);
+      }
     } else {
-      return id > fromId && id < toId;
+      if (id > fromId && id < toId) {
+        candidates.add(stationId);
+      }
     }
-  });
+  }
+
+  // 2. 新增：支線轉乘站
+  if (branchLineResolver && branchLineResolver.isLoaded()) {
+    // 如果起站是支線站，加入其轉乘站
+    const fromJunction = branchLineResolver.getJunctionStation(fromStationId);
+    if (fromJunction) {
+      candidates.add(fromJunction);
+    }
+
+    // 如果迄站是支線站，加入其轉乘站
+    const toJunction = branchLineResolver.getJunctionStation(toStationId);
+    if (toJunction) {
+      candidates.add(toJunction);
+    }
+  }
+
+  return Array.from(candidates);
 }
 
 /**
@@ -184,6 +213,48 @@ function printJourneyTable(
 }
 
 /**
+ * 格式化站點停駛錯誤
+ */
+function formatStationSuspendedError(
+  stationName: string,
+  alert: NormalizedAlert,
+  junctionStation?: string
+): {
+  code: string;
+  message: string;
+  alert: {
+    id: string;
+    title: string;
+    description: string;
+    alternativeTransport?: string;
+  };
+  suggestion: string;
+} {
+  // 找出替代站點建議
+  let suggestion = '';
+  if (junctionStation) {
+    const junctionName = TRA_STATIONS.find((s) => s.id === junctionStation)?.name || junctionStation;
+    suggestion = `請改查詢至${junctionName}站，再轉乘公路接駁`;
+  } else if (alert.alternativeTransport) {
+    suggestion = `替代方案：${alert.alternativeTransport}`;
+  } else {
+    suggestion = '請改查詢其他路線';
+  }
+
+  return {
+    code: 'STATION_SUSPENDED',
+    message: `${stationName}站目前停駛中`,
+    alert: {
+      id: alert.id,
+      title: alert.title,
+      description: alert.description,
+      alternativeTransport: alert.alternativeTransport,
+    },
+    suggestion,
+  };
+}
+
+/**
  * 格式化 JSON 輸出
  */
 function formatJourneysForJson(journeys: JourneyOption[]): object[] {
@@ -205,6 +276,55 @@ function formatJourneysForJson(journeys: JourneyOption[]): object[] {
       arrival: s.arrival,
     })),
   }));
+}
+
+/**
+ * Hybrid 策略：根據是否為支線站點選擇查詢方式
+ * - 主幹線：使用 OD API（快速）
+ * - 支線：使用 Station Timetable 比對（支援所有站點）
+ */
+async function querySegmentsHybrid(
+  api: TDXApiClient,
+  fromStationId: string,
+  toStationId: string,
+  fromStationName: string,
+  toStationName: string,
+  date: string,
+  branchLineResolver: BranchLineResolver,
+  options: { skipCache?: boolean } = {}
+): Promise<JourneySegment[]> {
+  const isBranchLineQuery =
+    branchLineResolver.isBranchLineStation(fromStationId) ||
+    branchLineResolver.isBranchLineStation(toStationId);
+
+  if (!isBranchLineQuery) {
+    // 主幹線查詢：使用 OD API
+    const timetables = await api.getDailyTimetable(
+      fromStationId,
+      toStationId,
+      date,
+      options
+    );
+    return timetables
+      .map((t) => timetableToSegment(t, fromStationId, toStationId))
+      .filter((s): s is JourneySegment => s !== null);
+  }
+
+  // 支線查詢：使用 Station Timetable 比對
+  const [originTimetables, destTimetables] = await Promise.all([
+    api.getStationTimetable(fromStationId, date, undefined, options),
+    api.getStationTimetable(toStationId, date, undefined, options),
+  ]);
+
+  const matcher = new StationTimetableMatcher();
+  return matcher.toJourneySegments(
+    originTimetables,
+    destTimetables,
+    fromStationId,
+    toStationId,
+    fromStationName,
+    toStationName
+  );
 }
 
 export const journeyCommand = new Command('journey')
@@ -261,33 +381,77 @@ export const journeyCommand = new Command('journey')
     try {
       const api = getApiClient();
 
-      // Step 0: 載入轉乘時間資料（用於動態計算最少轉乘時間）
+      // Step 0: 載入轉乘資料（用於動態計算最少轉乘時間和支線判斷）
       const transferTimeResolver = new TransferTimeResolver();
+      const branchLineResolver = new BranchLineResolver();
       try {
         const lineTransfers = await api.getLineTransfers({ skipCache: !options.cache });
         transferTimeResolver.load(lineTransfers);
+
+        // 載入支線車站資料（用於判斷支線站點的轉乘站）
+        const stationOfLines = await api.getMultipleStationsOfLine(
+          BRANCH_LINE_IDS,
+          { skipCache: !options.cache }
+        );
+        branchLineResolver.load(lineTransfers, stationOfLines);
       } catch {
         // 如果 API 失敗，使用預設值（不影響主流程）
       }
 
-      // Step 1: 查詢直達車
-      const directTimetables = await api.getDailyTimetable(
+      // Step 0.5: 檢查站點是否停駛
+      const alertService = new AlertService(api);
+      const suspendedStations = await alertService.checkStations([fromStation.id, toStation.id]);
+
+      if (suspendedStations.size > 0) {
+        // 檢查起站
+        const fromAlert = suspendedStations.get(fromStation.id);
+        if (fromAlert) {
+          const junctionStation = branchLineResolver.getJunctionStation(fromStation.id);
+          const error = formatStationSuspendedError(fromStation.name, fromAlert, junctionStation ?? undefined);
+          if (format === 'json') {
+            console.log(JSON.stringify({ success: false, error }));
+          } else {
+            console.error(`🚫 ${error.message}`);
+            console.error(`   ${error.alert.description.trim()}`);
+            console.error(`   💡 ${error.suggestion}`);
+          }
+          process.exit(1);
+        }
+
+        // 檢查迄站
+        const toAlert = suspendedStations.get(toStation.id);
+        if (toAlert) {
+          const junctionStation = branchLineResolver.getJunctionStation(toStation.id);
+          const error = formatStationSuspendedError(toStation.name, toAlert, junctionStation ?? undefined);
+          if (format === 'json') {
+            console.log(JSON.stringify({ success: false, error }));
+          } else {
+            console.error(`🚫 ${error.message}`);
+            console.error(`   ${error.alert.description.trim()}`);
+            console.error(`   💡 ${error.suggestion}`);
+          }
+          process.exit(1);
+        }
+      }
+
+      // Step 1: 查詢直達車（使用 Hybrid 策略支援支線）
+      const directSegments = await querySegmentsHybrid(
+        api,
         fromStation.id,
         toStation.id,
+        fromStation.name,
+        toStation.name,
         queryDate,
+        branchLineResolver,
         { skipCache: !options.cache }
       );
-
-      const directSegments: JourneySegment[] = directTimetables
-        .map((t) => timetableToSegment(t, fromStation.id, toStation.id))
-        .filter((s): s is JourneySegment => s !== null);
 
       // Step 2: 查詢轉乘方案（如果需要）
       const transferLegs: TransferLegData[] = [];
 
       if (maxTransfers >= 1) {
         // 篩選可能的轉乘站
-        const potentialTransfers = filterTransferStations(fromStation.id, toStation.id);
+        const potentialTransfers = filterTransferStations(fromStation.id, toStation.id, branchLineResolver);
 
         // 限制查詢的轉乘站數量（避免過多 API 呼叫）
         const transferStationsToQuery = potentialTransfers.slice(0, 3);
@@ -297,29 +461,29 @@ export const journeyCommand = new Command('journey')
           if (!transferStation) continue;
 
           try {
-            // 查詢第一段：起站 → 轉乘站
-            const firstLegTimetables = await api.getDailyTimetable(
+            // 查詢第一段：起站 → 轉乘站（使用 Hybrid 策略）
+            const firstLegSegments = await querySegmentsHybrid(
+              api,
               fromStation.id,
               transferStationId,
+              fromStation.name,
+              transferStation.name,
               queryDate,
+              branchLineResolver,
               { skipCache: !options.cache }
             );
 
-            // 查詢第二段：轉乘站 → 迄站
-            const secondLegTimetables = await api.getDailyTimetable(
+            // 查詢第二段：轉乘站 → 迄站（使用 Hybrid 策略）
+            const secondLegSegments = await querySegmentsHybrid(
+              api,
               transferStationId,
               toStation.id,
+              transferStation.name,
+              toStation.name,
               queryDate,
+              branchLineResolver,
               { skipCache: !options.cache }
             );
-
-            const firstLegSegments = firstLegTimetables
-              .map((t) => timetableToSegment(t, fromStation.id, transferStationId))
-              .filter((s): s is JourneySegment => s !== null);
-
-            const secondLegSegments = secondLegTimetables
-              .map((t) => timetableToSegment(t, transferStationId, toStation.id))
-              .filter((s): s is JourneySegment => s !== null);
 
             if (firstLegSegments.length > 0 && secondLegSegments.length > 0) {
               transferLegs.push({

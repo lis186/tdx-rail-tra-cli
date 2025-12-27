@@ -3,7 +3,7 @@
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
 > Date: 2025-12-26
-> Status: Phase 6 Complete (Journey Planner + TPASS Fare + Live Integration) | Phase 7: 阻通資訊整合 (Phase 1 完成: alerts 指令)
+> Status: Phase 7 Complete (Alert Integration) | alerts 指令 + journey 停駛站點警告
 
 ---
 
@@ -1739,7 +1739,7 @@ async isStationSuspended(stationId: string): Promise<Alert | null>
 | 🔴 高 | API 方法 | 新增 `getAlerts()` | ✅ 完成 |
 | 🔴 高 | `tra alerts` 指令 | 基本列表功能 | ✅ 完成 |
 | 🟢 低 | 站點/路線篩選 | `--line`, `--station` 選項 | ✅ 完成 |
-| 🟡 中 | journey 整合 | 查詢時顯示停駛警告 | 待實作 |
+| 🟡 中 | journey 整合 | 查詢時顯示停駛警告 | ✅ 完成 |
 
 ---
 

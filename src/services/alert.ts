@@ -83,23 +83,22 @@ export class AlertService {
 
   /**
    * 批次檢查多個站點
-   * @returns 受影響的 Alerts（去重）
+   * @returns Map<stationId, NormalizedAlert> 受影響站點與其 Alert
    */
-  async checkStations(stationIds: string[]): Promise<NormalizedAlert[]> {
+  async checkStations(stationIds: string[]): Promise<Map<string, NormalizedAlert>> {
     const alerts = await this.getActiveAlerts();
-    const affectedAlerts: NormalizedAlert[] = [];
-    const seenAlertIds = new Set<string>();
+    const result = new Map<string, NormalizedAlert>();
 
     for (const stationId of stationIds) {
       for (const alert of alerts) {
-        if (alert.affectedStationIds.has(stationId) && !seenAlertIds.has(alert.id)) {
-          affectedAlerts.push(alert);
-          seenAlertIds.add(alert.id);
+        if (alert.affectedStationIds.has(stationId)) {
+          result.set(stationId, alert);
+          break; // 一個站點只需要一個 alert
         }
       }
     }
 
-    return affectedAlerts;
+    return result;
   }
 
   /**
