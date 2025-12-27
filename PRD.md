@@ -3,7 +3,7 @@
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
 > Date: 2025-12-26
-> Status: Phase 7 Complete (Alert Integration) | alerts 指令 + journey 停駛站點警告
+> Status: Phase 8 Complete (UX Optimization) | 表格對齊 + 車種名稱簡化
 
 ---
 
@@ -1740,6 +1740,87 @@ async isStationSuspended(stationId: string): Promise<Alert | null>
 | 🔴 高 | `tra alerts` 指令 | 基本列表功能 | ✅ 完成 |
 | 🟢 低 | 站點/路線篩選 | `--line`, `--station` 選項 | ✅ 完成 |
 | 🟡 中 | journey 整合 | 查詢時顯示停駛警告 | ✅ 完成 |
+
+---
+
+### Phase 8: UX Optimization (表格優化)
+
+**目標**：提升 CLI 表格輸出的可讀性和使用者體驗
+
+**已完成項目**：
+
+#### 1. 車種名稱簡化
+
+**問題**：TDX API 返回的車種名稱過長且重複，不適合表格顯示
+
+| 原始名稱 | 簡化後 |
+|----------|--------|
+| `普悠瑪(普悠瑪)` | `普悠瑪` |
+| `自強(3000)(EMU3000 型電車)` | `新自強` |
+| `自強(DMU3100 型柴聯)` | `自強` |
+| `自強(商務專開列車)` | `商務` |
+| `自強(推拉式自強號且無自行車車廂)` | `自強` |
+| `莒光(有身障座位)` / `莒光(無身障座位)` | `莒光` |
+
+**實作**：
+- 新增共用模組 `src/lib/train-type.ts`
+- `simplifyTrainType()` 函數統一處理所有車種名稱
+
+#### 2. 表格固定寬度對齊
+
+**問題**：使用 Tab (`\t`) 對齊在中英文混合時無法正確對齊
+
+**解決方案**：
+- 新增 `src/lib/display-width.ts` 處理 CJK 字元寬度（中文字=寬度 2）
+- `getDisplayWidth()` 計算字串顯示寬度
+- `padEnd()` / `padStart()` 填充至指定寬度
+
+**受影響指令**：
+
+| 指令 | 表格函數 | 狀態 |
+|------|----------|------|
+| `tra timetable daily` | `printDailyTimetableTable` | ✅ 完成 |
+| `tra timetable train` | `printTrainTimetableTable` | ✅ 完成 |
+| `tra live station` | `printStationLiveBoard` | ✅ 完成 |
+| `tra live delays` | `printDelaysTable` | ✅ 完成 |
+| `tra fare` | `printFareTable` | ✅ 完成 |
+| `tra lines list` | `printLinesTable` | ✅ 完成 |
+| `tra lines stations` | `printStationsOfLineTable` | ✅ 完成 |
+
+#### 3. 排序修正
+
+**問題**：`--with-live` 模式下跨午夜班次排序錯誤（00:05 排在 17:41 前面）
+
+**解決方案**：使用 `remainingMinutes`（剩餘時間）排序而非出發時間
+
+#### 4. 即時看板方向分組
+
+**問題**：`tra live station` 南下北上班次混合顯示，使用者需自行判斷方向
+
+**解決方案**：預設按方向分組顯示
+
+**輸出範例**：
+```
+臺北 即時到離站資訊
+
+● 順行（方向 0）
+車次    車種    終點    到站      發車      狀態
+────────────────────────────────────────────
+4234    區間    福隆    18:08:00  18:10:00  晚 5 分
+132     自強    七堵    18:15:00  18:18:00  晚 2 分
+
+○ 逆行（方向 1）
+車次    車種    終點    到站      發車      狀態
+────────────────────────────────────────────
+1235    區間    新竹    18:13:00  18:16:00  準時
+```
+
+**行為**：
+- 預設：按方向分組顯示
+- `--direction 0`：僅顯示順行
+- `--direction 1`：僅顯示逆行
+
+**備註**：TDX API 的「順行/逆行」是以鐵路站序定義，非地理南北方向。使用者可透過「終點」欄位判斷列車行駛方向。
 
 ---
 

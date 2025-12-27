@@ -13,6 +13,7 @@ import {
   STATION_CORRECTIONS,
 } from '../data/stations.js';
 import type { ODFare } from '../types/api.js';
+import { padEnd } from '../lib/display-width.js';
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -187,8 +188,13 @@ function printFareTable(
 ): void {
   console.log(`\n${from.name} → ${to.name} 票價\n`);
 
-  console.log('票種\t\t類別\t\t票價');
-  console.log('─'.repeat(40));
+  const COL = { ticketType: 10, fareClass: 10, price: 8 };
+  console.log([
+    padEnd('票種', COL.ticketType),
+    padEnd('類別', COL.fareClass),
+    '票價',
+  ].join('  '));
+  console.log('─'.repeat(32));
 
   // 按票種分組顯示
   const faresByType = new Map<number, typeof fare.Fares>();
@@ -203,7 +209,11 @@ function printFareTable(
     const typeName = TICKET_TYPES[ticketType] || `類型${ticketType}`;
     for (const f of fares) {
       const className = FARE_CLASSES[f.FareClass] || `類別${f.FareClass}`;
-      console.log(`${typeName.padEnd(8)}\t${className.padEnd(8)}\t$${f.Price}`);
+      console.log([
+        padEnd(typeName, COL.ticketType),
+        padEnd(className, COL.fareClass),
+        `$${f.Price}`,
+      ].join('  '));
     }
   }
 

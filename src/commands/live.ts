@@ -15,6 +15,7 @@ import {
 import type { TrainLiveBoard, TrainDelay, StationLiveBoard } from '../types/api.js';
 import { runWithWatch } from '../utils/watch.js';
 import { simplifyTrainType } from '../lib/train-type.js';
+import { padEnd } from '../lib/display-width.js';
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
@@ -275,7 +276,8 @@ liveCommand
           liveBoards: liveBoards.map(formatStationLiveBoardForJson),
         }, null, 2));
       } else {
-        printStationLiveBoard(stationInfo, liveBoards);
+        const singleDirection = options.direction !== undefined;
+        printStationLiveBoard(stationInfo, liveBoards, singleDirection);
       }
     };
 
@@ -335,7 +337,8 @@ function formatStationLiveBoardForJson(board: StationLiveBoard): {
  */
 function printStationLiveBoard(
   station: { name: string; id: string },
-  liveBoards: StationLiveBoard[]
+  liveBoards: StationLiveBoard[],
+  singleDirection = false
 ): void {
   console.log(`\n${station.name} 即時到離站資訊\n`);
 
@@ -344,33 +347,76 @@ function printStationLiveBoard(
     return;
   }
 
+  // 欄位寬度
+  const COL = {
+    trainNo: 6,
+    trainType: 6,
+    endStation: 6,
+    platform: 4,
+    time: 8,
+    status: 8,
+  };
+
   // 檢查是否有任何班次有月臺資訊
   const hasPlatformInfo = liveBoards.some((b) => b.Platform);
 
-  if (hasPlatformInfo) {
-    console.log('車次\t車種\t終點站\t月臺\t到站\t\t發車\t\t狀態');
-    console.log('─'.repeat(72));
-  } else {
-    console.log('車次\t車種\t終點站\t到站\t\t發車\t\t狀態');
-    console.log('─'.repeat(64));
-  }
+  const printHeader = () => {
+    const header = [
+      padEnd('車次', COL.trainNo),
+      padEnd('車種', COL.trainType),
+      padEnd('終點', COL.endStation),
+    ];
+    if (hasPlatformInfo) header.push(padEnd('月臺', COL.platform));
+    header.push(padEnd('到站', COL.time), padEnd('發車', COL.time), '狀態');
+    console.log(header.join('  '));
+    console.log('─'.repeat(hasPlatformInfo ? 58 : 52));
+  };
 
-  for (const board of liveBoards) {
-    const trainType = simplifyTrainType(board.TrainTypeName.Zh_tw).padEnd(5, '　');
-    const endStation = board.EndingStationName.Zh_tw.padEnd(3, '　');
+  const printRow = (board: StationLiveBoard) => {
+    const trainType = simplifyTrainType(board.TrainTypeName.Zh_tw);
+    const endStation = board.EndingStationName.Zh_tw;
     const arrival = board.ScheduleArrivalTime || '--:--';
     const departure = board.ScheduleDepartureTime || '--:--';
     const status = formatDelayStatus(board.DelayTime);
 
+    const row = [
+      padEnd(board.TrainNo, COL.trainNo),
+      padEnd(trainType, COL.trainType),
+      padEnd(endStation, COL.endStation),
+    ];
     if (hasPlatformInfo) {
-      const platform = (board.Platform || '--').padEnd(4);
-      console.log(
-        `${board.TrainNo}\t${trainType}\t${endStation}\t${platform}\t${arrival}\t\t${departure}\t\t${status}`
-      );
-    } else {
-      console.log(
-        `${board.TrainNo}\t${trainType}\t${endStation}\t${arrival}\t\t${departure}\t\t${status}`
-      );
+      row.push(padEnd(board.Platform || '--', COL.platform));
+    }
+    row.push(padEnd(arrival, COL.time), padEnd(departure, COL.time), status);
+    console.log(row.join('  '));
+  };
+
+  if (singleDirection) {
+    // 已篩選單一方向，直接顯示
+    printHeader();
+    for (const board of liveBoards) {
+      printRow(board);
+    }
+  } else {
+    // 按方向分組顯示
+    const southbound = liveBoards.filter((b) => b.Direction === 0);
+    const northbound = liveBoards.filter((b) => b.Direction === 1);
+
+    if (southbound.length > 0) {
+      console.log('● 順行（方向 0）');
+      printHeader();
+      for (const board of southbound) {
+        printRow(board);
+      }
+    }
+
+    if (northbound.length > 0) {
+      if (southbound.length > 0) console.log('');
+      console.log('○ 逆行（方向 1）');
+      printHeader();
+      for (const board of northbound) {
+        printRow(board);
+      }
     }
   }
 
@@ -392,8 +438,13 @@ function printDelaysTable(delays: TrainDelay[], queriedTrains: string[]): void {
     return;
   }
 
-  console.log('車次\t\t延誤\t\t更新時間');
-  console.log('─'.repeat(50));
+  const COL = { trainNo: 6, delay: 8, time: 8 };
+  console.log([
+    padEnd('車次', COL.trainNo),
+    padEnd('延誤', COL.delay),
+    '更新時間',
+  ].join('  '));
+  console.log('─'.repeat(28));
 
   // 依延誤時間排序（大到小）
   const sorted = [...delays].sort((a, b) => b.DelayTime - a.DelayTime);
@@ -401,7 +452,11 @@ function printDelaysTable(delays: TrainDelay[], queriedTrains: string[]): void {
   for (const delay of sorted) {
     const status = formatDelayStatus(delay.DelayTime);
     const time = delay.UpdateTime.split('T')[1]?.substring(0, 5) || delay.UpdateTime;
-    console.log(`${delay.TrainNo}\t\t${status}\t\t${time}`);
+    console.log([
+      padEnd(delay.TrainNo, COL.trainNo),
+      padEnd(status, COL.delay),
+      time,
+    ].join('  '));
   }
 
   console.log(`\n共 ${delays.length} 列車`);

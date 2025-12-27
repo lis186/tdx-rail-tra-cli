@@ -1003,15 +1003,24 @@ function printTrainTimetableTable(timetable: GeneralTrainTimetable): void {
   console.log(`${info.StartingStationName.Zh_tw} → ${info.EndingStationName.Zh_tw}`);
   console.log(`方向：${info.Direction === 0 ? '順行（南下）' : '逆行（北上）'}\n`);
 
-  console.log('站序\t站名\t\t到達\t\t出發');
-  console.log('─'.repeat(50));
+  const COL = { seq: 4, name: 8, time: 5 };
+  console.log([
+    padEnd('站序', COL.seq),
+    padEnd('站名', COL.name),
+    padEnd('到達', COL.time),
+    '出發',
+  ].join('  '));
+  console.log('─'.repeat(30));
 
   for (const stop of timetable.StopTimes) {
     const arrival = stop.ArrivalTime || '--:--';
     const departure = stop.DepartureTime || '--:--';
-    const name = stop.StationName.Zh_tw.padEnd(6, '　');
-
-    console.log(`${stop.StopSequence}\t${name}\t\t${arrival}\t\t${departure}`);
+    console.log([
+      padEnd(String(stop.StopSequence), COL.seq),
+      padEnd(stop.StationName.Zh_tw, COL.name),
+      padEnd(arrival, COL.time),
+      departure,
+    ].join('  '));
   }
 
   console.log(`\n共 ${timetable.StopTimes.length} 停靠站`);

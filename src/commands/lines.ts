@@ -7,6 +7,7 @@ import { Command } from 'commander';
 import { TDXApiClient } from '../services/api.js';
 import { ConfigService } from '../services/config.js';
 import type { Line, StationOfLine } from '../types/api.js';
+import { padEnd } from '../lib/display-width.js';
 
 // 初始化
 const config = new ConfigService();
@@ -223,15 +224,26 @@ function printLinesTable(lines: Line[]): void {
     return;
   }
 
-  console.log('路線ID\t\t名稱\t\t\t區段\t\t支線');
-  console.log('─'.repeat(70));
+  const COL = { lineId: 10, name: 14, section: 10, branch: 4 };
+  console.log([
+    padEnd('路線ID', COL.lineId),
+    padEnd('名稱', COL.name),
+    padEnd('區段', COL.section),
+    '支線',
+  ].join('  '));
+  console.log('─'.repeat(44));
 
   for (const line of lines) {
-    const name = line.LineName.Zh_tw.padEnd(12, '　');
-    const section = (line.LineSectionName?.Zh_tw || '--').padEnd(8, '　');
+    const name = line.LineName.Zh_tw;
+    const section = line.LineSectionName?.Zh_tw || '--';
     const isBranch = line.IsBranch ? '是' : '否';
 
-    console.log(`${line.LineID}\t\t${name}\t\t${section}\t\t${isBranch}`);
+    console.log([
+      padEnd(line.LineID, COL.lineId),
+      padEnd(name, COL.name),
+      padEnd(section, COL.section),
+      isBranch,
+    ].join('  '));
   }
 
   console.log(`\n共 ${lines.length} 條路線`);
@@ -248,16 +260,27 @@ function printStationsOfLineTable(lineId: string, stationOfLine: StationOfLine):
     return;
   }
 
-  console.log('序號\t站ID\t\t站名\t\t\t里程(km)');
-  console.log('─'.repeat(60));
+  const COL = { seq: 4, stationId: 8, name: 10, distance: 10 };
+  console.log([
+    padEnd('序號', COL.seq),
+    padEnd('站ID', COL.stationId),
+    padEnd('站名', COL.name),
+    '里程(km)',
+  ].join('  '));
+  console.log('─'.repeat(38));
 
   for (const station of stationOfLine.Stations) {
-    const name = station.StationName.Zh_tw.padEnd(8, '　');
+    const name = station.StationName.Zh_tw;
     const distance = station.CumulativeDistance !== undefined
       ? `${(station.CumulativeDistance / 1000).toFixed(1)}`
       : '--';
 
-    console.log(`${station.Sequence}\t${station.StationID}\t\t${name}\t\t${distance}`);
+    console.log([
+      padEnd(String(station.Sequence), COL.seq),
+      padEnd(station.StationID, COL.stationId),
+      padEnd(name, COL.name),
+      distance,
+    ].join('  '));
   }
 
   console.log(`\n共 ${stationOfLine.Stations.length} 站`);
