@@ -3,7 +3,7 @@
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
 > Date: 2025-12-26
-> Status: Phase 8 Complete (UX Optimization) | 表格對齊 + 車種名稱簡化
+> Status: Phase 8 Complete (UX Optimization) | 表格對齊 + 車種名稱簡化 + 車站出口資訊
 
 ---
 
@@ -1821,6 +1821,38 @@ async isStationSuspended(stationId: string): Promise<Alert | null>
 - `--direction 1`：僅顯示逆行
 
 **備註**：TDX API 的「順行/逆行」是以鐵路站序定義，非地理南北方向。使用者可透過「終點」欄位判斷列車行駛方向。
+
+#### 5. 車站出口資訊
+
+**新增指令**：`tra stations exits <station>`
+
+**功能**：
+- 查詢車站出口位置、地址、無障礙設施
+- 顯示車站平面圖連結
+
+**選項**：
+- `--elevator`：僅顯示有電梯的出口
+- `--map`：顯示平面圖連結
+
+**輸出範例**：
+```
+臺北站 出口資訊
+
+出口      地址                      電扶梯  電梯
+────────────────────────────────────────────────
+北 1      臺北市中正區黎明里市民大道一段  1       ✓
+北 2      臺北市中正區黎明里市民大道一段  1       ✓
+東 1      臺北市中正區黎明里北平西路 3 號  1       ✓
+...
+
+共 12 個出口
+
+平面圖：
+  - 地下2樓平面圖: https://...
+  - 地下1樓~地上2樓: https://...
+```
+
+**API 資料來源**：`/v3/Rail/TRA/StationExit`（244 站有出口資料）
 
 ---
 

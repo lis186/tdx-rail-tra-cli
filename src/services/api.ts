@@ -20,6 +20,7 @@ import type {
   DailyStationTimetable,
   LineTransfer,
   Alert,
+  StationExit,
   DailyTimetableResponse,
   GeneralTimetableResponse,
   TrainLiveBoardResponse,
@@ -31,6 +32,7 @@ import type {
   DailyStationTimetableResponse,
   LineTransferResponse,
   AlertResponse,
+  StationExitResponse,
 } from '../types/api.js';
 
 const API_BASE = 'https://tdx.transportdata.tw/api/basic';
@@ -349,6 +351,37 @@ export class TDXApiClient {
 
     // 儲存快取
     this.cache.set(cacheKey, result, CACHE_TTL.ALERT);
+
+    return result;
+  }
+
+  /**
+   * 取得車站出口資訊
+   */
+  async getStationExits(
+    stationId?: string,
+    options: ApiOptions = {}
+  ): Promise<StationExit[]> {
+    const cacheKey = stationId ? `exits/${stationId}` : 'exits/all';
+
+    // 檢查快取
+    if (!options.skipCache) {
+      const cached = this.cache.get<StationExit[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    let url = `${API_BASE}/v3/Rail/TRA/StationExit`;
+    if (stationId) {
+      url += `?$filter=StationID eq '${stationId}'`;
+    }
+
+    const response = await this.request<StationExitResponse>(url);
+    const result = response.StationExits ?? [];
+
+    // 儲存快取
+    this.cache.set(cacheKey, result, CACHE_TTL.STATIC);
 
     return result;
   }

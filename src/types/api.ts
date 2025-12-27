@@ -385,3 +385,54 @@ export interface Alert {
 export interface AlertResponse extends TDXResponse<Alert[]> {
   Alerts: Alert[];
 }
+
+/**
+ * 車站出口資訊
+ */
+export interface StationExitInfo {
+  ExitID: string;
+  ExitName: {
+    Zh_tw: string;
+    En: string;
+  };
+  ExitPosition: {
+    PositionLon: number;
+    PositionLat: number;
+  };
+  LocationDescription: string;
+  Stair: boolean;
+  Escalator: number;
+  Elevator: boolean;
+}
+
+/**
+ * 車站平面圖
+ */
+export interface StationExitMap {
+  MapName: {
+    Zh_tw: string;
+    En: string;
+  };
+  MapURL: string;
+  FloorLevel: string;
+}
+
+/**
+ * 車站出口資料
+ */
+export interface StationExit {
+  StationID: string;
+  StationName: {
+    Zh_tw: string;
+    En: string;
+  };
+  Exits: StationExitInfo[];
+  ExitMapURLs: StationExitMap[];
+}
+
+/**
+ * 車站出口 API 回應
+ */
+export interface StationExitResponse extends TDXResponse<StationExit[]> {
+  StationExits: StationExit[];
+}
