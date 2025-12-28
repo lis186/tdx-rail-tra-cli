@@ -1,6 +1,6 @@
 /**
  * ✅ 修复版本：RateLimiter Service
- * Token Bucket algorithm for TDX API rate limiting (50 req/s)
+ * Token Bucket algorithm for TDX API rate limiting (5 req/s for Bronze tier)
  *
  * 改进：简单可靠的轮询等待（不用复杂的队列管理）
  */
@@ -13,10 +13,10 @@ export interface RateLimiterConfig {
 }
 
 const DEFAULT_CONFIG: RateLimiterConfig = {
-  maxTokens: 50,
-  refillRate: 50,
-  retryAfterMs: 100,
-  maxRetries: 3,
+  maxTokens: 5,
+  refillRate: 5,
+  retryAfterMs: 200,
+  maxRetries: 5,
 };
 
 export class RateLimitError extends Error {

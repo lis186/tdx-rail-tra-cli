@@ -1,6 +1,6 @@
 /**
  * Rate Limiter Tests
- * Token Bucket algorithm for TDX API rate limiting (50 req/s)
+ * Token Bucket algorithm for TDX API rate limiting (5 req/s for Bronze tier)
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
@@ -259,28 +259,28 @@ describe('RateLimiter', () => {
     });
   });
 
-  describe('TDX API defaults', () => {
-    it('should default to 50 req/s rate limit', () => {
+  describe('TDX API defaults (Bronze tier: 5 req/s)', () => {
+    it('should default to 5 req/s rate limit', () => {
       const limiter = new RateLimiter();
 
-      // Should be able to make 50 requests
-      for (let i = 0; i < 50; i++) {
+      // Should be able to make 5 requests
+      for (let i = 0; i < 5; i++) {
         expect(limiter.tryAcquire()).toBe(true);
       }
       expect(limiter.tryAcquire()).toBe(false);
     });
 
-    it('should refill at 50 tokens/second', () => {
+    it('should refill at 5 tokens/second', () => {
       const limiter = new RateLimiter();
 
-      // Use all 50 tokens
-      for (let i = 0; i < 50; i++) {
+      // Use all 5 tokens
+      for (let i = 0; i < 5; i++) {
         limiter.tryAcquire();
       }
 
-      // After 1 second, should have 50 tokens again
+      // After 1 second, should have 5 tokens again
       vi.advanceTimersByTime(1000);
-      expect(limiter.getAvailableTokens()).toBe(50);
+      expect(limiter.getAvailableTokens()).toBe(5);
     });
   });
 

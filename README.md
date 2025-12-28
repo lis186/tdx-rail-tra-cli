@@ -464,7 +464,7 @@ tra fare 台北 高雄 -f json | jq '.fare.fares[0].price'
 
 This CLI implements TDX API best practices:
 
-- **Rate Limiting**: Token Bucket algorithm (50 req/s)
+- **Rate Limiting**: Token Bucket algorithm (5 req/s for Bronze tier)
 - **Retry**: Exponential backoff for transient errors (408, 429, 500, 502, 503, 504)
 - **Token Caching**:
   - In-memory cache (same process)
