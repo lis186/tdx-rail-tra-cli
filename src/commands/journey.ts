@@ -4,7 +4,7 @@
  */
 
 import { Command } from 'commander';
-import Table from 'cli-table3';
+// Removed cli-table3 - using simple dash format for consistency
 import { StationResolver } from '../lib/station-resolver.js';
 import { getApiClient } from '../lib/api-client.js';
 import { TDXApiClient } from '../services/api.js';
@@ -138,7 +138,20 @@ function filterTransferStations(
 }
 
 /**
- * 輸出表格格式
+ * 字串填充工具函數
+ */
+function padEnd(str: string, len: number): string {
+  // 計算實際顯示寬度（中文字元算 2）
+  let width = 0;
+  for (const char of str) {
+    width += char.charCodeAt(0) > 127 ? 2 : 1;
+  }
+  const padding = Math.max(0, len - width);
+  return str + ' '.repeat(padding);
+}
+
+/**
+ * 輸出表格格式 - 使用簡單橫線風格
  */
 function printJourneyTable(
   journeys: JourneyOption[],
@@ -153,45 +166,65 @@ function printJourneyTable(
     return;
   }
 
-  // 使用更詳細的表格格式
-  const table = new Table({
-    head: ['#', '行程', '出發', '抵達', '時長'],
-    style: { head: ['cyan'] },
-    colWidths: [4, 50, 8, 8, 8],
-    wordWrap: true,
-  });
+  // 定義欄位寬度
+  const COL = {
+    num: 4,
+    route: 50,
+    departure: 8,
+    arrival: 8,
+    duration: 8,
+  };
+
+  // 印出表頭
+  const header = [
+    padEnd('#', COL.num),
+    padEnd('行程', COL.route),
+    padEnd('出發', COL.departure),
+    padEnd('抵達', COL.arrival),
+    padEnd('時長', COL.duration),
+  ].join('');
+  console.log(header);
+  console.log('─'.repeat(78));
 
   journeys.forEach((journey, index) => {
-    // 構建行程描述
-    let routeDesc = '';
-
+    // 第一行：編號、類型描述、時間資訊
+    let typeDesc = '';
     if (journey.type === 'direct') {
       const seg = journey.segments[0];
-      routeDesc = `[直達] ${seg.trainNo} ${seg.trainType}\n` +
-                  `${seg.fromStationName} → ${seg.toStationName}`;
+      typeDesc = `[直達] ${seg.trainNo} ${seg.trainType}`;
     } else {
-      const lines: string[] = [];
-      lines.push(`[轉乘] 在${journey.transferStation}轉車 (等${journey.waitTime}分)`);
-
-      journey.segments.forEach((seg, i) => {
-        const prefix = i === 0 ? '①' : '②';
-        lines.push(`${prefix} ${seg.trainNo} ${seg.trainType}`);
-        lines.push(`   ${seg.fromStationName} ${seg.departure} → ${seg.toStationName} ${seg.arrival}`);
-      });
-
-      routeDesc = lines.join('\n');
+      typeDesc = `[轉乘] 在${journey.transferStation}轉車 (等${journey.waitTime}分)`;
     }
 
-    table.push([
-      index + 1,
-      routeDesc,
-      journey.departure,
-      journey.arrival,
-      formatDuration(journey.totalDuration),
-    ]);
+    const row1 = [
+      padEnd(String(index + 1), COL.num),
+      padEnd(typeDesc, COL.route),
+      padEnd(journey.departure, COL.departure),
+      padEnd(journey.arrival, COL.arrival),
+      padEnd(formatDuration(journey.totalDuration), COL.duration),
+    ].join('');
+    console.log(row1);
+
+    // 輸出每個 segment 的詳細資訊
+    journey.segments.forEach((seg, i) => {
+      const prefix = journey.type === 'direct' ? '  ' : (i === 0 ? '① ' : '② ');
+      const segLine = journey.type === 'direct'
+        ? `   ${seg.fromStationName} ${seg.departure} → ${seg.toStationName} ${seg.arrival}`
+        : `${prefix}${seg.trainNo} ${seg.trainType}`;
+      console.log(padEnd('', COL.num) + segLine);
+
+      if (journey.type !== 'direct') {
+        const detailLine = `   ${seg.fromStationName} ${seg.departure} → ${seg.toStationName} ${seg.arrival}`;
+        console.log(padEnd('', COL.num) + detailLine);
+      }
+    });
+
+    // 行程之間加分隔線（除了最後一個）
+    if (index < journeys.length - 1) {
+      console.log('─'.repeat(78));
+    }
   });
 
-  console.log(table.toString());
   console.log(`\n共 ${journeys.length} 個行程方案`);
 }
 
