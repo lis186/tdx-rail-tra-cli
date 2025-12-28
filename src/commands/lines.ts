@@ -4,30 +4,9 @@
  */
 
 import { Command } from 'commander';
-import { TDXApiClient } from '../services/api.js';
-import { ConfigService } from '../services/config.js';
+import { getApiClient } from '../lib/api-client.js';
 import type { Line, StationOfLine } from '../types/api.js';
 import { padEnd } from '../lib/display-width.js';
-
-// 初始化
-const config = new ConfigService();
-
-/**
- * 取得 API 客戶端
- */
-function getApiClient(): TDXApiClient {
-  const clientId = config.getClientId();
-  const clientSecret = config.getClientSecret();
-
-  if (!clientId || !clientSecret) {
-    console.error('錯誤：尚未設定 TDX API 憑證');
-    console.error('請設定環境變數 TDX_CLIENT_ID 和 TDX_CLIENT_SECRET');
-    console.error('或執行 tra config init 進行設定');
-    process.exit(1);
-  }
-
-  return new TDXApiClient(clientId, clientSecret);
-}
 
 export const linesCommand = new Command('lines')
   .description('路線查詢');

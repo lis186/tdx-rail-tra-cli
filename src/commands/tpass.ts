@@ -22,26 +22,10 @@ import {
   type CrossRegionFareResult,
   type FareOption,
 } from '../lib/tpass-fare.js';
-import { TDXApiClient } from '../services/api.js';
-import { ConfigService } from '../services/config.js';
+import { getApiClient } from '../lib/api-client.js';
 
 // Initialize resolver
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
-const config = new ConfigService();
-
-/**
- * Get API client for fare lookups
- */
-function getApiClient(): TDXApiClient {
-  const clientId = config.getClientId();
-  const clientSecret = config.getClientSecret();
-
-  if (!clientId || !clientSecret) {
-    throw new Error('TDX API credentials not configured');
-  }
-
-  return new TDXApiClient(clientId, clientSecret);
-}
 
 export const tpassCommand = new Command('tpass')
   .description('TPASS 月票查詢');

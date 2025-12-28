@@ -5,8 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { TDXApiClient } from '../services/api.js';
-import { ConfigService } from '../services/config.js';
+import { getApiClient } from '../lib/api-client.js';
 
 export const metricsCommand = new Command('metrics')
   .description('檢視系統 Prometheus 指標');
@@ -20,18 +19,8 @@ metricsCommand
   .description('顯示系統指標摘要（文字格式）')
   .action((options, cmd) => {
     try {
-      const configService = new ConfigService();
-      const clientId = configService.getClientId();
-      const clientSecret = configService.getClientSecret();
-
-      if (!clientId || !clientSecret) {
-        console.error('❌ 未設定 TDX API 認證資訊');
-        console.error('請執行: tra config set-auth <client_id> <client_secret>');
-        process.exit(3);
-      }
-
-      // 初始化 API 客戶端以確保指標系統已準備好
-      const apiClient = new TDXApiClient(clientId, clientSecret);
+      // 初始化 API 客戶端（支援多 Key）以確保指標系統已準備好
+      const apiClient = getApiClient();
 
       // 暴露指標的提示
       displayMetricsInfo();
@@ -53,17 +42,8 @@ metricsCommand
   .description('以 Prometheus 格式暴露指標')
   .action(async (options, cmd) => {
     try {
-      const configService = new ConfigService();
-      const clientId = configService.getClientId();
-      const clientSecret = configService.getClientSecret();
-
-      if (!clientId || !clientSecret) {
-        console.error('❌ 未設定 TDX API 認證資訊');
-        process.exit(3);
-      }
-
-      // 初始化 API 客戶端
-      const apiClient = new TDXApiClient(clientId, clientSecret);
+      // 初始化 API 客戶端（支援多 Key）
+      const apiClient = getApiClient();
 
       // 匯出指標內容類型和指標數據
       const { getMetricsSnapshot, getMetricsContentType } = apiClient as any;
@@ -89,18 +69,8 @@ metricsCommand
   .description('啟動 HTTP 伺服器暴露 Prometheus 指標')
   .action(async (portArg?: string, options?: any, cmd?: any) => {
     try {
-      const configService = new ConfigService();
-      const clientId = configService.getClientId();
-      const clientSecret = configService.getClientSecret();
-
-      if (!clientId || !clientSecret) {
-        console.error('❌ 未設定 TDX API 認證資訊');
-        console.error('請執行: tra config set-auth <client_id> <client_secret>');
-        process.exit(3);
-      }
-
-      // 初始化 API 客戶端
-      const apiClient = new TDXApiClient(clientId, clientSecret);
+      // 初始化 API 客戶端（支援多 Key）
+      const apiClient = getApiClient();
 
       // 解析埠號
       const port = parseInt(portArg || '9090', 10);

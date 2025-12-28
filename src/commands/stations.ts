@@ -5,8 +5,7 @@
 
 import { Command } from 'commander';
 import { StationResolver } from '../lib/station-resolver.js';
-import { TDXApiClient } from '../services/api.js';
-import { ConfigService } from '../services/config.js';
+import { getApiClient } from '../lib/api-client.js';
 import {
   TRA_STATIONS,
   STATION_NICKNAMES,
@@ -149,26 +148,6 @@ stationsCommand
       console.log(result.station.id);
     }
   });
-
-// 初始化 ConfigService
-const config = new ConfigService();
-
-/**
- * 取得 API 客戶端
- */
-function getApiClient(): TDXApiClient {
-  const clientId = config.getClientId();
-  const clientSecret = config.getClientSecret();
-
-  if (!clientId || !clientSecret) {
-    console.error('錯誤：尚未設定 TDX API 憑證');
-    console.error('請設定環境變數 TDX_CLIENT_ID 和 TDX_CLIENT_SECRET');
-    console.error('或執行 tra config init 進行設定');
-    process.exit(1);
-  }
-
-  return new TDXApiClient(clientId, clientSecret);
-}
 
 /**
  * tra stations exits <station>

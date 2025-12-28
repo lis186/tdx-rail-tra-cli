@@ -5,9 +5,8 @@
  */
 
 import { Command } from 'commander';
-import { TDXApiClient } from '../services/api.js';
 import { HealthCheckService, getHttpStatusCode } from '../services/health.js';
-import { ConfigService } from '../services/config.js';
+import { getApiClient } from '../lib/api-client.js';
 
 export const healthCommand = new Command('health')
   .description('檢查系統健康狀態');
@@ -23,19 +22,8 @@ healthCommand
   .option('--text', '輸出可讀文字格式')
   .action(async (options, cmd) => {
     try {
-      // 讀取配置
-      const configService = new ConfigService();
-      const clientId = configService.getClientId();
-      const clientSecret = configService.getClientSecret();
-
-      if (!clientId || !clientSecret) {
-        console.error('❌ 未設定 TDX API 認證資訊');
-        console.error('請執行: tra config set-auth <client_id> <client_secret>');
-        process.exit(3);
-      }
-
-      // 初始化 API 客戶端和健康檢查服務
-      const apiClient = new TDXApiClient(clientId, clientSecret);
+      // 初始化 API 客戶端（支援多 Key）和健康檢查服務
+      const apiClient = getApiClient();
       const healthService = new HealthCheckService(apiClient);
 
       // 執行健康檢查

@@ -4,9 +4,8 @@
  */
 
 import { Command } from 'commander';
-import { TDXApiClient } from '../services/api.js';
 import { AlertService, NormalizedAlert } from '../services/alert.js';
-import { ConfigService } from '../services/config.js';
+import { getApiClient } from '../lib/api-client.js';
 import { StationResolver } from '../lib/station-resolver.js';
 import {
   TRA_STATIONS,
@@ -16,24 +15,6 @@ import {
 
 // 初始化
 const resolver = new StationResolver(TRA_STATIONS, STATION_NICKNAMES, STATION_CORRECTIONS);
-const config = new ConfigService();
-
-/**
- * 取得 API 客戶端
- */
-function getApiClient(): TDXApiClient {
-  const clientId = config.getClientId();
-  const clientSecret = config.getClientSecret();
-
-  if (!clientId || !clientSecret) {
-    console.error('錯誤：尚未設定 TDX API 憑證');
-    console.error('請設定環境變數 TDX_CLIENT_ID 和 TDX_CLIENT_SECRET');
-    console.error('或執行 tra config init 進行設定');
-    process.exit(1);
-  }
-
-  return new TDXApiClient(clientId, clientSecret);
-}
 
 export const alertsCommand = new Command('alerts')
   .description('阻通資訊查詢')
