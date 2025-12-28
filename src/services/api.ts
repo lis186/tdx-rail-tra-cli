@@ -643,7 +643,7 @@ export class TDXApiClient {
 
     try {
       const result = await this.circuitBreaker.execute(async () => {
-        const token = await slot.auth.getToken();
+        const token = await slot.getAuthService().getToken();
         return ofetch<T>(url, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -719,6 +719,102 @@ export class TDXApiClient {
     // MAAS API 回應格式: { result: "success", data: { url: "..." } }
     const response = await this.maasRequest<{ result: string; data: { url: string } }>(url, query);
     return { url: response.data.url };
+  }
+
+  /**
+   * 呼叫 MAAS 旅運規劃 API 取得路線方案（含 UUID）
+   *
+   * 這是 MAAS Deeplink 流程的第一步：
+   * 1. 呼叫此 API 取得路線規劃
+   * 2. 從回應中取得 transport.uuid
+   * 3. 用 UUID 換取實際的 deeplink URL
+   *
+   * @param params.originLat 起點緯度
+   * @param params.originLng 起點經度
+   * @param params.destLat 迄點緯度
+   * @param params.destLng 迄點經度
+   * @param params.departureTime 出發時間 (ISO 8601 格式)
+   * @param params.transit 運具類型 (預設 '4' = 台鐵)
+   */
+  async getTripPlanning(params: {
+    originLat: number;
+    originLng: number;
+    destLat: number;
+    destLng: number;
+    departureTime: string;
+    transit?: string;
+    gc?: number;
+    top?: number;
+  }): Promise<{
+    result: string;
+    data?: {
+      routes: Array<{
+        travel_time: number;
+        start_time: string;
+        end_time: string;
+        transfers: number;
+        sections: Array<{
+          type: string;
+          transport?: {
+            mode: string;
+            name: string;
+            uuid: string;
+            shortName?: string;
+            longName?: string;
+          };
+          departure?: { place: string; time: string };
+          arrival?: { place: string; time: string };
+        }>;
+      }>;
+    };
+    error?: { code: number; msg: string };
+  }> {
+    const MAAS_ROUTING_BASE = 'https://tdx.transportdata.tw/api/maas';
+    const url = `${MAAS_ROUTING_BASE}/routing`;
+
+    const query = {
+      origin: `${params.originLat},${params.originLng}`,
+      destination: `${params.destLat},${params.destLng}`,
+      gc: String(params.gc ?? 0.5),
+      transit: params.transit ?? '4', // 4 = 台鐵
+      top: String(params.top ?? 5),
+      depart: params.departureTime,
+    };
+
+    return this.maasRequest(url, query);
+  }
+
+  /**
+   * 用 UUID 換取 Deeplink URL
+   *
+   * 這是 MAAS Deeplink 流程的第二步：
+   * 使用從旅運規劃 API 取得的 UUID 換取實際的 deeplink URL
+   *
+   * 注意：Deeplink token 有效期限為 3 分鐘
+   *
+   * @param uuid 從旅運規劃 API 取得的 UUID
+   * @param agency 運具業者 ('TRA' 或 'HSR')
+   */
+  async getDeeplinkByUuid(
+    uuid: string,
+    agency: 'TRA' | 'HSR' = 'TRA'
+  ): Promise<{
+    result: string;
+    data?: Array<{
+      deeplink: string;
+      expired: string;
+    }>;
+    error?: { code: number; msg: string };
+  }> {
+    const baseUrl = agency === 'TRA'
+      ? 'https://tdx.transportdata.tw/api/maas-tra'
+      : 'https://tdx.transportdata.tw/api/maas-thsr';
+
+    const url = `${baseUrl}/booking/deeplink/url/${agency.toLowerCase()}`;
+
+    const query = { uuid };
+
+    return this.maasRequest(url, query);
   }
 
   /**
