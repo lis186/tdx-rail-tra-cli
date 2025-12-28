@@ -16,7 +16,7 @@ A command-line tool for querying Taiwan Railway information, including stations,
 - **Booking Links**: Generate TRA booking URLs
 - **Multi-language**: Supports zh-TW, en, ja, ko
 - **Offline Capable**: Cached station data for offline use
-- **AI-First Design**: JSON output by default, structured errors
+- **AI-First Design**: JSON output by default, TOON format (~75% token savings), structured errors
 - **High Performance**:
   - Multi-API Key load balancing (up to 10 keys)
   - Parallel query optimization (Promise.all-based concurrent requests)
@@ -405,7 +405,7 @@ tra metrics server 9090
 
 | Option | Description |
 |--------|-------------|
-| `-f, --format <format>` | Output format: `json` (default), `table`, `csv` |
+| `-f, --format <format>` | Output format: `json` (default), `table`, `toon` |
 | `-l, --lang <lang>` | Language: `zh-TW` (default), `en`, `ja`, `ko` |
 | `-q, --quiet` | Suppress non-essential output |
 | `-v, --verbose` | Show debug information |
@@ -447,6 +447,37 @@ tra timetable daily --from 台北 --to 高雄 --limit 3 -f table
 
 共 3 班次
 ```
+
+### TOON (Token-Oriented Object Notation)
+
+LLM-optimized format that saves ~75% tokens compared to JSON. Ideal for AI agents.
+
+```bash
+tra timetable daily --from 台北 --to 高雄 --limit 3 -f toon
+```
+
+```
+success: true
+query:
+  from:
+    id: 1000
+    name: 臺北
+  to:
+    id: 4400
+    name: 高雄
+  date: 2025-12-28
+count: 3
+timetables[3]{trainNo,trainType,departure,arrival,duration,tpassEligible}:
+  161,新自強,06:00,10:28,268,true
+  1,商務,06:22,11:17,295,true
+  103,自強,06:27,11:36,309,true
+```
+
+**TOON Benefits:**
+- ~75% fewer tokens than JSON (tested with real TRA data)
+- Human-readable and LLM-friendly
+- Preserves data structure semantics
+- Spec: https://github.com/toon-format/spec
 
 ## Station Input Flexibility
 

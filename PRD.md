@@ -24,7 +24,7 @@
 
 ### 1.3 Design Principles
 
-1. **AI-First**: JSON 預設輸出，結構化錯誤，完整 `--help`
+1. **AI-First**: JSON 預設輸出，TOON 格式（節省 ~75% tokens），結構化錯誤，完整 `--help`
 2. **Offline-Capable**: 靜態資料快取，減少 API 依賴
 3. **Fuzzy-Friendly**: 車站名稱模糊搜尋，容錯輸入
 4. **Predictable**: 資源導向命令結構，一致的 API 設計
@@ -828,7 +828,7 @@ tra tpass regions                  # 列出所有生活圈
 tra tpass stations <region>        # 列出指定生活圈的車站
 
 # Options:
---format json|table                # 輸出格式
+--format json|table|toon           # 輸出格式 (toon 節省 ~75% tokens)
 ```
 
 **範例**：

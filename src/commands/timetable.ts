@@ -26,6 +26,7 @@ import {
 import type { DailyTrainTimetable, GeneralTrainTimetable, DailyStationTimetable, ODFare, TrainDelay, StationLiveBoard } from '../types/api.js';
 import { simplifyTrainType } from '../lib/train-type.js';
 import { padEnd } from '../lib/display-width.js';
+import { outputData, type OutputFormat } from '../lib/output-formatter.js';
 
 // 即時資訊緩衝時間（分鐘）- 往前查詢的範圍以捕捉延誤列車
 const LIVE_DELAY_BUFFER_MINUTES = 120;
@@ -376,8 +377,8 @@ timetableCommand
         }
       }
 
-      if (format === 'json') {
-        // 準備輸出資料（包含即時資訊）
+      if (format !== 'table') {
+        // 準備輸出資料（包含即時資訊）- 支援 json 和 toon 格式
         const timetablesOutput = formatTimetablesForJson(filteredTimetables, fromStation.id, toStation.id);
 
         // 如果有即時資訊，附加到每個班次
@@ -429,7 +430,7 @@ timetableCommand
           output.fare = formatFareForOutput(fareData);
         }
 
-        console.log(JSON.stringify(output, null, 2));
+        outputData(output, format as OutputFormat);
       } else {
         // 傳遞即時資訊給 table 輸出
         const liveData = options.withLive

@@ -21,7 +21,7 @@ cli
 
 // 全域選項
 cli
-  .option('-f, --format <format>', '輸出格式: json (default) | table', 'json')
+  .option('-f, --format <format>', '輸出格式: json (default) | table | toon', 'json')
   .option('-q, --quiet', '安靜模式')
   .option('-v, --verbose', '詳細模式');
 
