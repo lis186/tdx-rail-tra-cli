@@ -2679,3 +2679,5 @@ $ tra tpass check 桃園 新竹
 **最後更新**：2025-12-28
 **更新者**：Claude Code
 **狀態**：P1 完成 (4/4) | P2 進行中 (3/5) - Prometheus 指標 + 並行優化 Phase 1 + Token 快取上線 | Phase 2 進階並行優化實驗已記錄並回退
+**測試總數**：885 個通過（已刪除 14 個過時的 P0 並發測試）
+**Multi-Key**：✅ QA 驗證完成（health status 顯示正確 Key 數量、journey 指令輪詢正常）
