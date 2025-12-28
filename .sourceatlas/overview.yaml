@@ -1,0 +1,154 @@
+metadata:
+  project_name: "tdx-rail-tra-cli"
+  scan_time: "2025-12-27T12:37:35Z"
+  target_path: "."
+  total_files: 90
+  scanned_files: 7
+  scan_ratio: "7.8%"
+  project_scale: "LARGE"
+  constitution_version: "1.1"
+  context:
+    git_branch: "main"
+    relative_path: null
+    package_name: "tdx-rail-tra-cli"
+
+project_fingerprint:
+  project_type: "CLI"
+  scale: "LARGE"
+  primary_language: "TypeScript 5.7"
+  framework: "Commander.js 12.1"
+  architecture: "Modular CLI with Service Layer"
+
+tech_stack:
+  backend:
+    language: "TypeScript 5.7"
+    framework: "Commander.js 12.1 + Node.js 20+"
+    database: null
+    api_client: "ofetch 1.4"
+
+  infrastructure:
+    containerization: "none"
+    orchestration: "none"
+    runtime: "Node.js 20+ / Bun (binary compilation)"
+
+hypotheses:
+  architecture:
+    - hypothesis: "Resource-oriented CLI architecture with command-service separation (commands/ invoke services/, lib/ provides core logic)"
+      confidence: 0.95
+      evidence: "src/cli.ts:1-37 (10 subcommands registered), src/services/ (7 service files), src/commands/ (10 command files)"
+      validation_method: "Trace execution flow from cli.ts → commands/ → services/ → API"
+
+    - hypothesis: "AI-first design with JSON-default output and structured error handling for automation tools (n8n, Claude Code)"
+      confidence: 0.90
+      evidence: "README.md:19 ('JSON output by default, structured errors'), CLAUDE.md:12 ('Designed for AI agents'), PRD.md:27 ('AI-First design principle')"
+      validation_method: "Run CLI commands and verify JSON output structure"
+
+    - hypothesis: "Multi-layer station resolution system: ID → corrections → variant characters (台/臺) → nicknames → fuzzy Levenshtein (distance ≤2)"
+      confidence: 0.92
+      evidence: "CLAUDE.md:45-47 (resolution priority documented), README.md:378-397 (input flexibility examples)"
+      validation_method: "Read src/lib/station-resolver.ts to confirm implementation"
+
+  tech_stack:
+    - hypothesis: "OAuth2 Client Credentials Flow with token caching and 60-second refresh buffer to handle TDX API rate limits (50 req/s)"
+      confidence: 0.93
+      evidence: "PRD.md:86-99 (TDX API limits + rate limiter spec), CLAUDE.md:49-52 (Auth service with token caching), src/services/auth.ts + rate-limiter.ts exist"
+      validation_method: "Read src/services/auth.ts and rate-limiter.ts to verify Token Bucket implementation"
+
+    - hypothesis: "File-based caching system at ~/.cache/tdx-tra/ with TTL-based expiration (stations: 30d, timetables: 5.5h, fares: 7d, live: no cache)"
+      confidence: 0.91
+      evidence: "CLAUDE.md:54-55 (cache location and TTLs), src/services/cache.ts:4080 bytes (cache implementation), README.md:461-466 (API compliance section mentions caching)"
+      validation_method: "Read src/services/cache.ts to confirm TTL logic and file-based storage"
+
+    - hypothesis: "Comprehensive test coverage using Vitest with TDD methodology (32 test files), MSW for API mocking, targeting >80% coverage"
+      confidence: 0.88
+      evidence: "package.json:32-34 (vitest scripts + coverage), CLAUDE.md:67-80 (TDD requirements documented), PRD.md:49 (msw for mocking), tests/ directory with 32 .test.ts files"
+      validation_method: "Run 'npm test -- --coverage' to verify actual coverage percentage"
+
+  development:
+    - hypothesis: "Test-driven development (TDD) with Red-Green-Refactor cycle, structured test organization mirroring src/ directory"
+      confidence: 0.90
+      evidence: "CLAUDE.md:67-80 (explicit TDD requirements), PRD.md:22 ('write tests first'), tests/lib/, tests/commands/, tests/services/, tests/e2e/ structure"
+      validation_method: "Check test file structure and git history for test-first commits"
+
+    - hypothesis: "i18n support for 4 languages (zh-TW default, en, ja, ko) with translation files in src/i18n/"
+      confidence: 0.94
+      evidence: "README.md:17 ('Multi-language: zh-TW, en, ja, ko'), CLAUDE.md:103-105 (i18n section), src/i18n/{zh-TW,en,ja,ko}.ts files exist"
+      validation_method: "Read src/i18n/index.ts to verify language switching logic"
+
+    - hypothesis: "Cross-platform binary compilation using Bun for 6 targets (macOS ARM64/x64, Linux ARM64/x64, Windows x64)"
+      confidence: 0.92
+      evidence: "package.json:25-31 (build:binary scripts for all platforms), README.md:29-35 (binary download section listing platforms)"
+      validation_method: "Run 'npm run build:binary' to verify Bun compilation works"
+
+  ai_collaboration:
+    level: 3
+    confidence: 0.95
+    tools_detected:
+      - tool: "Claude Code"
+        config_file: "CLAUDE.md"
+        content_quality: "comprehensive"
+      - tool: "Claude Code"
+        config_file: ".claude/"
+        content_quality: "basic"
+    indicators:
+      - "CLAUDE.md is 3697 bytes with detailed architecture, TDD requirements, and station resolver specifics"
+      - ".claude/ directory contains settings.local.json (76 bytes)"
+      - "High documentation density: 3086 total doc lines (CLAUDE.md: 105, README.md: 588, PRD.md: 2393)"
+      - "Systematic TDD documentation in CLAUDE.md lines 67-80 with Red-Green-Refactor cycle"
+      - "PRD.md includes detailed TDX API compliance, rate limiting algorithms, and phase tracking with checkboxes"
+      - "Project configured for AI agent automation (n8n, Claude Code, Gemini CLI) as primary users"
+
+  business:
+    - hypothesis: "Taiwan Railway (TRA) data access CLI targeting AI automation tools and power users, replacing n8n HTTP Request nodes"
+      confidence: 0.95
+      evidence: "README.md:5 ('Designed for AI agents, automation tools (n8n)'), PRD.md:17-23 (target users: AI Agents, n8n, Developers, Power Users)"
+      validation_method: "Review PRD.md business requirements section"
+
+    - hypothesis: "TPASS monthly pass optimization feature calculates cross-region fare savings and recommends optimal transfer points"
+      confidence: 0.91
+      evidence: "README.md:243-276 (TPASS command examples with cross-region fare calculation), src/commands/tpass.ts exists, PRD shows Phase 8 complete with TPASS features"
+      validation_method: "Read src/commands/tpass.ts to verify fare optimization logic"
+
+    - hypothesis: "Real-time train tracking with delay information and journey planning with multi-transfer support (up to 2 transfers)"
+      confidence: 0.89
+      evidence: "README.md:9 ('Real-time Info: Live train positions and delay'), README.md:167-205 (journey planner with --max-transfers, --min-transfer-time options)"
+      validation_method: "Read src/commands/live.ts and src/commands/journey.ts"
+
+scanned_files:
+  - file: "README.md"
+    reason: "Highest entropy - user-facing documentation with feature descriptions, command examples, and architecture overview"
+    key_insight: "AI-first design with JSON-default output, fuzzy station search, TPASS optimization, real-time tracking, 10 main commands"
+
+  - file: "CLAUDE.md"
+    reason: "AI collaboration config - development guidelines for Claude Code"
+    key_insight: "TDD requirements, station resolver architecture (5-layer priority), Taiwan timezone handling, n8n workflow parity"
+
+  - file: "package.json"
+    reason: "Project configuration - dependencies, scripts, and build targets"
+    key_insight: "TypeScript + Commander + ofetch stack, Vitest testing, Bun binary compilation for 6 platforms, npm global installation"
+
+  - file: "PRD.md"
+    reason: "Product requirements - business goals, technical specifications, API compliance"
+    key_insight: "TDX API integration with OAuth2, rate limiting (50 req/s), TTL-based caching, Phase 8 complete (UX optimization), n8n replacement goal"
+
+  - file: "src/cli.ts"
+    reason: "CLI entry point - command registration and global options"
+    key_insight: "10 registered subcommands (stations, timetable, tpass, fare, live, book, lines, completion, journey, alerts), Commander.js framework, global format/quiet/verbose options"
+
+  - file: "tsconfig.json"
+    reason: "TypeScript configuration - compilation settings"
+    key_insight: "ES2022 target, NodeNext module resolution, strict mode, path aliases (@/*), declaration maps for debugging"
+
+  - file: "src/index.ts"
+    reason: "Application entry point - dotenv loading and CLI initialization"
+    key_insight: "Minimal entry point loads .env config and delegates to cli.ts, follows Node.js CLI conventions with shebang"
+
+summary:
+  understanding_depth: "75%"
+  key_findings:
+    - "Mature CLI tool with 18,080 LOC TypeScript, 10 subcommands, and AI-first design (JSON default, structured errors)"
+    - "Systematic AI collaboration (Level 3) with comprehensive CLAUDE.md (TDD, architecture docs) targeting Claude Code and n8n automation"
+    - "Multi-layer station resolver with fuzzy Levenshtein matching, nickname support, and offline fallback data (220+ stations)"
+    - "TDX API integration with OAuth2 token caching, Token Bucket rate limiting (50 req/s), and TTL-based file caching (30d/5.5h/7d)"
+    - "Cross-platform binary compilation (Bun) for 6 targets, i18n support (4 languages), TDD with 32 test files and >80% coverage target"
+    - "TPASS optimization calculates cross-region fare savings with transfer point recommendations"

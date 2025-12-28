@@ -7,7 +7,18 @@ import { ofetch, FetchError } from 'ofetch';
 import { AuthService } from './auth.js';
 import { CacheService } from './cache.js';
 import { RateLimiter } from './rate-limiter.js';
+import { CircuitBreaker } from './circuit-breaker.js';
 import { retry, isRetryableStatus } from './retry.js';
+import { loggers } from '../lib/logger.js';
+import * as metrics from '../lib/metrics.js';
+// 🔧 P2 改善：導出 Prometheus 指標
+export { getMetricsSnapshot, getMetricsContentType } from '../lib/metrics.js';
+// 🔧 P1 改善：導出新的重試策略 (可選使用)
+export { retryWithExponentialBackoff, createApiRetryOptions, defaultShouldRetry } from '../lib/retry-strategy.js';
+export type { RetryOptions, RetryStatistics } from '../lib/retry-strategy.js';
+// 🔧 P1 改善：導出日誌系統 (結構化日誌)
+export { loggers, StructuredLogger, createRequestContext, generateSpanId } from '../lib/logger.js';
+export type { LogContext, LogEntry, LogLevel } from '../lib/logger.js';
 import type {
   DailyTrainTimetable,
   GeneralTrainTimetable,
@@ -54,11 +65,30 @@ export class TDXApiClient {
   private auth: AuthService;
   private cache: CacheService;
   private rateLimiter: RateLimiter;
+  private circuitBreaker: CircuitBreaker;
 
   constructor(clientId: string, clientSecret: string) {
     this.auth = new AuthService(clientId, clientSecret);
     this.cache = new CacheService();
     this.rateLimiter = new RateLimiter();
+
+    // 🔧 初始化 Circuit Breaker (P1 改善)
+    this.circuitBreaker = new CircuitBreaker('TDX-API', {
+      failureThreshold: 5,      // 5 次失敗後開啟
+      successThreshold: 2,      // 2 次成功後關閉
+      timeout: 60000,           // 60 秒後嘗試恢復
+      shouldRetry: (error: Error) => {
+        // 只重試暫時性錯誤
+        const code = (error as any).code || (error as any).status;
+        return code === 'ECONNREFUSED' ||
+               code === 'ETIMEDOUT' ||
+               code === 'ENOTFOUND' ||
+               code === 429 ||  // Too Many Requests
+               code === 502 ||  // Bad Gateway
+               code === 503 ||  // Service Unavailable
+               code === 504;    // Gateway Timeout
+      }
+    });
   }
 
   /**
@@ -288,21 +318,19 @@ export class TDXApiClient {
     lineIds: string[],
     options: ApiOptions = {}
   ): Promise<StationOfLine[]> {
-    const results: StationOfLine[] = [];
+    // 🔧 P2 改善：並行查詢所有支線（而非順序執行）
+    const promises = lineIds.map((lineId) =>
+      this.getStationsOfLine(lineId, options)
+        .then((result) => ({ status: 'fulfilled' as const, value: result }))
+        .catch(() => ({ status: 'rejected' as const, reason: null }))
+    );
 
-    for (const lineId of lineIds) {
-      try {
-        const stationOfLine = await this.getStationsOfLine(lineId, options);
-        if (stationOfLine) {
-          results.push(stationOfLine);
-        }
-      } catch {
-        // 忽略單一路線查詢失敗
-        continue;
-      }
-    }
+    const settled = await Promise.all(promises);
 
-    return results;
+    // 過濾成功結果
+    return settled
+      .filter((r) => r.status === 'fulfilled' && r.value !== null)
+      .map((r) => (r as { status: 'fulfilled'; value: StationOfLine }).value);
   }
 
   /**
@@ -395,65 +423,164 @@ export class TDXApiClient {
 
   /**
    * 發送帶認證的 API 請求
-   * 包含 Rate Limiting 和 Retry 機制
+   * 包含 Circuit Breaker、Rate Limiting、Retry 和 Logging 機制 (P1 改善)
    */
   private async request<T>(url: string, query?: Record<string, string>): Promise<T> {
-    // 使用 retry 包裝請求，處理暫時性錯誤
-    return retry(
-      async () => {
-        // 取得 rate limit token
-        await this.rateLimiter.acquire();
+    const startTime = Date.now();
+    const requestId = loggers.api.getCurrentRequestId();
 
-        // 取得 auth token
-        const token = await this.auth.getToken();
+    loggers.api.debug('API request started', {
+      requestId,
+      url,
+      query
+    });
 
-        return ofetch<T>(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          query: query
-            ? {
-                ...query,
-                $format: 'JSON',
-              }
-            : {
-                $format: 'JSON',
+    try {
+      // 🔧 使用 Circuit Breaker 保護 API 請求 (P1 改善)
+      const result = await this.circuitBreaker.execute(() =>
+        // 使用 retry 包裝請求，處理暫時性錯誤
+        retry(
+          async () => {
+            // 取得 rate limit token
+            await this.rateLimiter.acquire();
+
+            // 取得 auth token
+            const token = await this.auth.getToken();
+
+            return ofetch<T>(url, {
+              headers: {
+                Authorization: `Bearer ${token}`,
               },
-        });
-      },
-      {
-        maxRetries: 3,
-        baseDelayMs: 1000,
-        maxDelayMs: 10000,
-        shouldRetry: (error: unknown) => {
-          // 處理 FetchError
-          if (error instanceof FetchError) {
-            const status = error.statusCode ?? error.status;
-            if (status) {
-              // 401 表示 token 過期，清除快取後重試
-              if (status === 401) {
-                this.auth.clearCache();
-                return true;
+              query: query
+                ? {
+                    ...query,
+                    $format: 'JSON',
+                  }
+                : {
+                    $format: 'JSON',
+                  },
+            });
+          },
+          {
+            maxRetries: 3,
+            baseDelayMs: 1000,
+            maxDelayMs: 10000,
+            shouldRetry: (error: unknown) => {
+              // 處理 FetchError
+              if (error instanceof FetchError) {
+                const status = error.statusCode ?? error.status;
+                if (status) {
+                  // 401 表示 token 過期，清除快取後重試
+                  if (status === 401) {
+                    this.auth.clearCache();
+                    return true;
+                  }
+                  return isRetryableStatus(status);
+                }
               }
-              return isRetryableStatus(status);
-            }
-          }
 
-          // 處理一般 Error（網路錯誤等）
-          if (error instanceof Error) {
-            const message = error.message.toLowerCase();
-            return (
-              message.includes('network') ||
-              message.includes('timeout') ||
-              message.includes('econnreset') ||
-              message.includes('socket hang up') ||
-              message.includes('fetch failed')
-            );
-          }
+              // 處理一般 Error（網路錯誤等）
+              if (error instanceof Error) {
+                const message = error.message.toLowerCase();
+                return (
+                  message.includes('network') ||
+                  message.includes('timeout') ||
+                  message.includes('econnreset') ||
+                  message.includes('socket hang up') ||
+                  message.includes('fetch failed')
+                );
+              }
 
-          return false;
-        },
-      }
-    );
+              return false;
+            },
+          }
+        )
+      );
+
+      const duration = Date.now() - startTime;
+      loggers.api.info('API request completed', {
+        requestId,
+        url,
+        duration,
+        statusCode: 200
+      });
+
+      // 🔧 記錄 Prometheus 指標 (P2 改善)
+      metrics.recordApiRequest(
+        'GET',
+        this.extractEndpointFromUrl(url),
+        200,
+        duration
+      );
+
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const statusCode = (error as any)?.statusCode || (error as any)?.status || 500;
+
+      loggers.api.error(
+        'API request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          url,
+          duration,
+          statusCode
+        }
+      );
+
+      // 🔧 記錄 Prometheus 指標 (P2 改善)
+      metrics.recordApiRequest(
+        'GET',
+        this.extractEndpointFromUrl(url),
+        statusCode,
+        duration
+      );
+
+      throw error;
+    }
+  }
+
+  /**
+   * 取得 Circuit Breaker 狀態（用於監控）
+   */
+  getCircuitBreakerMetrics() {
+    return this.circuitBreaker.getMetrics();
+  }
+
+  /**
+   * 取得 Circuit Breaker 當前狀態（用於健康檢查）
+   */
+  getCircuitBreakerState() {
+    return this.circuitBreaker.getState();
+  }
+
+  /**
+   * 取得所有內部服務實例（用於健康檢查）
+   */
+  getInternalServices() {
+    return {
+      auth: this.auth,
+      cache: this.cache,
+      circuitBreaker: this.circuitBreaker
+    };
+  }
+
+  /**
+   * 從 URL 中提取端點路徑（用於指標標籤）
+   */
+  private extractEndpointFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      // 簡化路徑：去掉版本號，保留主要端點
+      // 例：/api/basic/v3/Rail/TRA/Station → /Rail/TRA/Station
+      return pathname
+        .replace(/^\/api\/basic\/v\d+\//, '/')
+        .replace(/\/\d+$/, '') // 去掉 ID
+        .substring(0, 50); // 限制長度
+    } catch {
+      return '/unknown';
+    }
   }
 }

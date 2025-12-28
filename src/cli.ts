@@ -9,6 +9,8 @@ import { linesCommand } from './commands/lines.js';
 import { completionCommand } from './commands/completion.js';
 import { journeyCommand } from './commands/journey.js';
 import { alertsCommand } from './commands/alerts.js';
+import { healthCommand } from './commands/health.js';
+import { metricsCommand } from './commands/metrics.js';
 
 export const cli = new Command();
 
@@ -34,3 +36,5 @@ cli.addCommand(linesCommand);
 cli.addCommand(completionCommand);
 cli.addCommand(journeyCommand);
 cli.addCommand(alertsCommand);
+cli.addCommand(healthCommand);
+cli.addCommand(metricsCommand);
