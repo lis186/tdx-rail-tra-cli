@@ -18,9 +18,15 @@ A command-line tool for querying Taiwan Railway information, including stations,
 - **Offline Capable**: Cached station data for offline use
 - **AI-First Design**: JSON output by default, structured errors
 - **High Performance**:
+  - Multi-API Key load balancing (up to 10 keys)
   - Parallel query optimization (Promise.all-based concurrent requests)
   - Cross-process Token persistence (29% faster subsequent queries)
   - Multi-layer caching (in-memory + disk + data)
+  - Circuit breaker for fault isolation
+- **Observability**:
+  - Health check endpoint (`tra health`)
+  - Prometheus metrics export (`tra metrics`)
+  - Traffic alerts query (`tra alerts`)
 
 ## Installation
 
@@ -334,6 +340,58 @@ tra completion zsh >> ~/.zshrc
 tra completion fish > ~/.config/fish/completions/tra.fish
 ```
 
+### `tra alerts` - Traffic Alerts
+
+```bash
+# Get all active alerts
+tra alerts
+
+# Filter by station
+tra alerts --station 台北
+
+# Table format
+tra alerts -f table
+```
+
+### `tra health` - Health Check
+
+```bash
+# Check system health status
+tra health status
+
+# Text format output
+tra health status --text
+
+# JSON format (default)
+tra health status --json
+```
+
+**Components monitored:**
+- API Service (connectivity, response time)
+- Auth Service (token validity, API key pool status)
+- Cache Service (hit rate, disk usage)
+- Circuit Breaker (state, failure rate)
+
+### `tra metrics` - Prometheus Metrics
+
+```bash
+# Show metrics summary
+tra metrics status
+
+# Export in Prometheus format
+tra metrics prometheus
+
+# Start metrics HTTP server on port 9090
+tra metrics server 9090
+```
+
+**Exposed metrics categories:**
+- `tdx_api_*` - API requests, duration, errors
+- `tdx_auth_*` - Token requests, cache hits/misses
+- `tdx_cache_*` - Cache hits, misses, size
+- `tdx_circuit_breaker_*` - State, failure rate
+- `tdx_retry_*` - Retry attempts, success rate
+
 ## Global Options
 
 | Option | Description |
@@ -455,20 +513,44 @@ tra fare 台北 高雄 -f json | jq '.fare.fares[0].price'
 
 | Variable | Description |
 |----------|-------------|
-| `TDX_CLIENT_ID` | TDX API client ID |
-| `TDX_CLIENT_SECRET` | TDX API client secret |
+| `TDX_CLIENT_ID` | TDX API client ID (primary) |
+| `TDX_CLIENT_SECRET` | TDX API client secret (primary) |
+| `TDX_KEY_LABEL` | Label for primary key (optional, for health status) |
+| `TDX_CLIENT_ID_2` ... `_10` | Additional API client IDs |
+| `TDX_CLIENT_SECRET_2` ... `_10` | Additional API client secrets |
+| `TDX_KEY_LABEL_2` ... `_10` | Labels for additional keys |
 | `TRA_LANG` | Default language |
 | `NO_COLOR` | Disable colored output |
+
+### Multi-API Key Support
+
+Configure up to 10 API keys for load balancing and improved rate limit handling:
+
+```bash
+# Primary key (no suffix)
+export TDX_CLIENT_ID="your-primary-id"
+export TDX_CLIENT_SECRET="your-primary-secret"
+export TDX_KEY_LABEL="primary"
+
+# Additional keys (suffix _2 to _10)
+export TDX_CLIENT_ID_2="your-secondary-id"
+export TDX_CLIENT_SECRET_2="your-secondary-secret"
+export TDX_KEY_LABEL_2="secondary"
+```
+
+The CLI automatically distributes requests across available keys using round-robin. Check key pool status with `tra health status`.
 
 ## API Compliance
 
 This CLI implements TDX API best practices:
 
+- **Multi-Key Load Balancing**: Up to 10 API keys with round-robin distribution
 - **Rate Limiting**: Token Bucket algorithm (5 req/s for Bronze tier)
 - **Retry**: Exponential backoff for transient errors (408, 429, 500, 502, 503, 504)
+- **Circuit Breaker**: Automatic fault isolation (5 failures → open, 30s recovery)
 - **Token Caching**:
   - In-memory cache (same process)
-  - **Disk persistence** (cross-process, 24h TTL) ✨
+  - **Disk persistence** (cross-process, 24h TTL)
   - Automatic loading on startup, 60-second refresh buffer
   - Performance: 29% faster subsequent queries by skipping OAuth2 auth
 - **Data Caching**: Timetables (4h), Fares (7d), Static data (24h)
@@ -494,7 +576,7 @@ npm run dev -- stations list
 # Build
 npm run build
 
-# Build binaries
+# Build binaries (requires Bun)
 npm run build:binary        # Current platform
 npm run build:binary:all    # All platforms
 
@@ -512,7 +594,7 @@ npm run typecheck
 The project uses Vitest with TDD methodology:
 
 ```bash
-# Run all 661 tests
+# Run all 885+ tests
 npm test
 
 # Run specific test file
