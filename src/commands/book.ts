@@ -1,10 +1,14 @@
 /**
  * Book Command
  * 訂票連結生成指令
+ *
+ * 使用 TDX Booking Deeplink API 生成正確的訂票連結
+ * 文件：https://tdx.transportdata.tw/webapi/File/Swagger/V3/ad884f5e-4692-4600-8662-12abf40e5946
  */
 
 import { Command } from 'commander';
 import { StationResolver } from '../lib/station-resolver.js';
+import { getApiClient } from '../lib/api-client.js';
 import {
   TRA_STATIONS,
   STATION_NICKNAMES,
@@ -27,54 +31,21 @@ const TICKET_TYPES: Record<string, { id: number; name: string }> = {
 };
 
 /**
- * 生成網頁訂票連結
+ * Fallback: 生成網頁訂票連結（當 API 失敗時使用）
  */
-function generateWebBookingUrl(params: {
+function generateFallbackWebUrl(params: {
   trainNo: string;
-  fromStationId: string;
-  toStationId: string;
+  fromStationName: string;
+  toStationName: string;
   date: string;
-  ticketType: number;
-  quantity: number;
 }): string {
-  const { trainNo, fromStationId, toStationId, date, ticketType, quantity } = params;
+  const { trainNo, fromStationName, toStationName, date } = params;
 
-  // 台鐵網頁訂票連結格式
+  // 台鐵網頁訂票連結格式（帶車站名稱）
   const baseUrl = 'https://tip.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query';
   const searchParams = new URLSearchParams({
-    startStation: fromStationId,
-    endStation: toStationId,
     rideDate: date.replace(/-/g, '/'),
     trainNo: trainNo,
-    ticketType: String(ticketType),
-    ticketQty: String(quantity),
-  });
-
-  return `${baseUrl}?${searchParams.toString()}`;
-}
-
-/**
- * 生成 APP 深度連結
- */
-function generateAppDeeplink(params: {
-  trainNo: string;
-  fromStationId: string;
-  toStationId: string;
-  date: string;
-  ticketType: number;
-  quantity: number;
-}): string {
-  const { trainNo, fromStationId, toStationId, date, ticketType, quantity } = params;
-
-  // 台鐵 APP 深度連結格式
-  const baseUrl = 'traticket://booking';
-  const searchParams = new URLSearchParams({
-    from: fromStationId,
-    to: toStationId,
-    date: date,
-    train: trainNo,
-    type: String(ticketType),
-    qty: String(quantity),
   });
 
   return `${baseUrl}?${searchParams.toString()}`;
@@ -146,21 +117,45 @@ export const bookCommand = new Command('book')
       process.exit(1);
     }
 
-    // 生成連結
-    const params = {
-      trainNo: options.train,
-      fromStationId: fromStation.id,
-      toStationId: toStation.id,
-      date: options.date,
-      ticketType: ticketTypeInfo.id,
-      quantity,
-    };
-
-    const url = options.app
-      ? generateAppDeeplink(params)
-      : generateWebBookingUrl(params);
-
+    // 透過 TDX API 取得訂票連結
+    let url: string;
+    let usedApi = true;
     const linkType = options.app ? 'app' : 'web';
+
+    try {
+      const api = getApiClient();
+
+      if (options.app) {
+        // APP 深度連結
+        const result = await api.getBookingDeeplink({
+          startStation: fromStation.name,
+          endStation: toStation.name,
+          date: options.date,
+          trainNumber: options.train,
+        });
+        url = result.url;
+      } else {
+        // 網頁訂票連結
+        const result = await api.getBookingWebUrl({
+          startStation: fromStation.name,
+          endStation: toStation.name,
+          date: options.date,
+          trainNumber: options.train,
+          ticketType: ticketTypeInfo.id,
+          ticketCount: quantity,
+        });
+        url = result.url;
+      }
+    } catch (error) {
+      // API 失敗時使用 fallback（MAAS API 需要特殊訂閱權限）
+      usedApi = false;
+      url = generateFallbackWebUrl({
+        trainNo: options.train,
+        fromStationName: fromStation.name,
+        toStationName: toStation.name,
+        date: options.date,
+      });
+    }
 
     if (format === 'json') {
       console.log(JSON.stringify({
@@ -175,6 +170,7 @@ export const bookCommand = new Command('book')
           ticketType: ticketTypeInfo.id,
           ticketTypeName: ticketTypeInfo.name,
           quantity,
+          apiUsed: usedApi,
         },
       }, null, 2));
     } else {
@@ -185,6 +181,9 @@ export const bookCommand = new Command('book')
       console.log(`票種：${ticketTypeInfo.name}`);
       console.log(`數量：${quantity} 張`);
       console.log(`\n連結：${url}`);
+      if (!usedApi) {
+        console.log('\n(使用基本連結，部分參數可能需手動填寫)');
+      }
     }
 
     // 自動開啟瀏覽器

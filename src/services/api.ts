@@ -631,6 +631,97 @@ export class TDXApiClient {
   }
 
   /**
+   * 發送 MAAS API 請求（不使用 OData $format 參數）
+   * MAAS API 使用不同的格式，不支援 TDX 標準的 $format=JSON
+   */
+  private async maasRequest<T>(url: string, query?: Record<string, string>): Promise<T> {
+    // 取得最佳可用 Slot
+    const slot = this.pool.getSlot();
+    if (!slot) {
+      throw new Error('No available API key slots');
+    }
+
+    try {
+      const result = await this.circuitBreaker.execute(async () => {
+        const token = await slot.auth.getToken();
+        return ofetch<T>(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          query: query,
+        });
+      });
+
+      // 記錄成功
+      slot.recordSuccess();
+
+      return result;
+    } catch (error) {
+      // 記錄失敗
+      slot.recordFailure(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+
+  /**
+   * 取得網頁訂票連結 (透過 TDX Booking Deeplink API)
+   *
+   * 注意：此 API 需要 TDX MAAS 訂閱權限
+   * 若帳號無權限會返回 403，此時會使用 fallback 連結
+   */
+  async getBookingWebUrl(params: {
+    startStation: string;
+    endStation: string;
+    date: string;
+    trainNumber: string;
+    ticketType: number;
+    ticketCount: number;
+  }): Promise<{ url: string }> {
+    const MAAS_API_BASE = 'https://tdx.transportdata.tw/api/maas-tra';
+    const url = `${MAAS_API_BASE}/booking/deeplink/web/tra`;
+
+    const query = {
+      start_station: params.startStation,
+      end_station: params.endStation,
+      departure_date: params.date,
+      departure_number: params.trainNumber,
+      ticket_type: String(params.ticketType),
+      ticket_count: String(params.ticketCount),
+    };
+
+    // MAAS API 回應格式: { result: "success", data: { url: "..." } }
+    const response = await this.maasRequest<{ result: string; data: { url: string } }>(url, query);
+    return { url: response.data.url };
+  }
+
+  /**
+   * 取得 APP 深度連結 (透過 TDX Booking Deeplink API)
+   *
+   * 注意：此 API 需要 TDX MAAS 訂閱權限
+   * 若帳號無權限會返回 403，此時會使用 fallback 連結
+   */
+  async getBookingDeeplink(params: {
+    startStation: string;
+    endStation: string;
+    date: string;
+    trainNumber: string;
+  }): Promise<{ url: string }> {
+    const MAAS_API_BASE = 'https://tdx.transportdata.tw/api/maas-tra';
+    const url = `${MAAS_API_BASE}/booking/deeplink/direct/tra`;
+
+    const query = {
+      start_station: params.startStation,
+      end_station: params.endStation,
+      train_date: params.date,
+      train_number: params.trainNumber,
+    };
+
+    // MAAS API 回應格式: { result: "success", data: { url: "..." } }
+    const response = await this.maasRequest<{ result: string; data: { url: string } }>(url, query);
+    return { url: response.data.url };
+  }
+
+  /**
    * 從 URL 中提取端點路徑（用於指標標籤）
    */
   private extractEndpointFromUrl(url: string): string {
