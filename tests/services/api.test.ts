@@ -79,14 +79,19 @@ describe('TDXApiClient', () => {
   });
 
   describe('constructor', () => {
-    it('should have auth instance', () => {
-      const authInstance = (apiClient as unknown as { auth: { getToken: ReturnType<typeof vi.fn> } }).auth;
-      expect(authInstance.getToken).toBeDefined();
+    it('should have pool with auth capability', () => {
+      const { pool } = apiClient.getInternalServices();
+      expect(pool).toBeDefined();
+      expect(pool.getSlotCount()).toBeGreaterThan(0);
+      // 驗證 slot 可以取得 AuthService
+      const slot = pool.getSlot();
+      expect(slot.getAuthService().getToken).toBeDefined();
     });
 
     it('should have cache instance', () => {
-      const cacheInstance = (apiClient as unknown as { cache: { get: ReturnType<typeof vi.fn> } }).cache;
-      expect(cacheInstance.get).toBeDefined();
+      const { cache } = apiClient.getInternalServices();
+      expect(cache).toBeDefined();
+      expect(cache.get).toBeDefined();
     });
   });
 

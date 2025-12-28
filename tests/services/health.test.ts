@@ -3,6 +3,19 @@ import { HealthCheckService, HealthStatus } from '../../src/services/health.js';
 import { CircuitState } from '../../src/services/circuit-breaker.js';
 import type { TDXApiClient } from '../../src/services/api.js';
 
+/**
+ * 創建 Pool Mock（適配 Multi-Key 架構）
+ */
+function createMockPool(mockAuth: any) {
+  return {
+    getSlot: () => ({
+      getAuthService: () => mockAuth
+    }),
+    getSlotCount: () => 1,
+    getActiveSlotCount: () => 1
+  };
+}
+
 describe('HealthCheckService', () => {
   let healthService: HealthCheckService;
   let mockApiClient: any;
@@ -46,7 +59,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -85,7 +98,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -120,7 +133,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -155,7 +168,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -190,7 +203,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -227,7 +240,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -263,7 +276,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -299,7 +312,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -335,7 +348,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -372,7 +385,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -408,7 +421,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -444,7 +457,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -480,7 +493,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -516,7 +529,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -551,7 +564,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -588,7 +601,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
@@ -625,7 +638,7 @@ describe('HealthCheckService', () => {
       });
 
       mockApiClient.getInternalServices.mockReturnValue({
-        auth: mockAuth,
+        pool: createMockPool(mockAuth),
         circuitBreaker: mockCircuitBreaker
       });
 
