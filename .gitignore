@@ -27,3 +27,4 @@ coverage/
 
 # Reference files (contains sensitive workflow data)
 n8n-ttca.json
+claude-code-trabot.json
