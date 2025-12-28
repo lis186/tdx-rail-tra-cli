@@ -1,0 +1,375 @@
+{
+  "name": "Claude Code mcp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smart-tra",
+        "options": {}
+      },
+      "id": "fae355f7-ea85-4e3d-8ea4-aa362e3c1596",
+      "name": "Webhook from Line Message",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -608,
+        528
+      ],
+      "webhookId": "05a332c6-7f26-41ba-beb0-ff206cf821c6",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\n  const output = result.stdout || '';\n\n  // 策略 1: 找最後一個完整的 JSON 物件（用於標準回應）\n  let targetJson = null;\n\n  // 嘗試從 ```json ... ``` 代碼塊提取\n  const codeBlockMatch = output.match(/```json\\n([\\s\\S]*?)\\n```/);\n  if (codeBlockMatch) {\n    try {\n      const jsonStr = codeBlockMatch[1];\n      const parsed = JSON.parse(jsonStr);\n      if (parsed.formattedMessages) {\n        targetJson = parsed;\n      }\n    } catch (e) {\n      // 繼續嘗試\n    }\n  }\n\n  // 策略 2: 找最後的 { 到最後的 }\n  if (!targetJson) {\n    // 找最後一個有效的 JSON 物件\n    let braceCount = 0;\n    let jsonStart = -1;\n\n    for (let i = output.length - 1; i >= 0; i--) {\n      if (output[i] === '}') {\n        braceCount++;\n        if (jsonStart === -1) jsonStart = i;\n      } else if (output[i] === '{') {\n        braceCount--;\n        if (braceCount === 0 && jsonStart !== -1) {\n          try {\n            const jsonStr = output.substring(i, jsonStart + 1);\n            const parsed = JSON.parse(jsonStr);\n            if (parsed.formattedMessages || parsed.text) {\n              targetJson = parsed;\n              break;\n            }\n          } catch (e) {\n            jsonStart = -1;\n          }\n        }\n      }\n    }\n  }\n\n  // 策略 3: 簡單的正則找 { ... \"formattedMessages\" ... }\n  if (!targetJson) {\n    const jsonMatches = output.match(/\\{[^{}]*\"formattedMessages\"[^{}]*\\}/);\n    if (jsonMatches) {\n      try {\n        const parsed = JSON.parse(jsonMatches[0]);\n        if (parsed.formattedMessages) {\n          targetJson = parsed;\n        }\n      } catch (e) {\n        // 忽略\n      }\n    }\n  }\n\n  // 如果找到了完整的 JSON，返回它\n  if (targetJson && targetJson.formattedMessages) {\n    return [{\n      json: {\n        formattedMessages: targetJson.formattedMessages\n      }\n    }];\n  }\n\n  // 降級方案：如果有 text，用文本回應\n  if (targetJson && targetJson.text) {\n    return [{\n      json: {\n        formattedMessages: [{\n          type: 'text',\n          text: targetJson.text\n        }]\n      }\n    }];\n  }\n\n  // 最後的降級：查找任何列車資訊文本\n  const trainMatch = output.match(/1\\ufe20⃣[\\s\\S]{0,500}?分鐘/);\n  if (trainMatch) {\n    return [{\n      json: {\n        formattedMessages: [{\n          type: 'text',\n          text: trainMatch[0]\n        }]\n      }\n    }];\n  }\n\n  // 完全降級：返回整個輸出（前 2000 字）\n  return [{\n    json: {\n      formattedMessages: [{\n        type: 'text',\n        text: output.substring(0, 2000) || '查詢完成'\n      }]\n    }\n  }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        336
+      ],
+      "id": "847f544b-2a8b-48ab-9be2-13b499ea9578",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"replyToken\": \"{{ $('Webhook from Line Message').item.json.body.events[0].replyToken }}\",\n  \"messages\": {{ JSON.stringify($json.formattedMessages) }}\n}",
+        "options": {}
+      },
+      "id": "b2264a3c-0bf6-49fe-95ea-6576ef5e4677",
+      "name": "Line : Train Time",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1056,
+        336
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rYCGJjqdhrhSfpkg",
+          "name": "Header Auth account for NextStop Line bot"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "getProfile",
+        "userId": "={{ $json.body.events[0].source.userId }}"
+      },
+      "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        496
+      ],
+      "id": "ce457adc-46db-4dfa-9075-10b4d1c2b56c",
+      "name": "Line Messaging",
+      "credentials": {
+        "lineMessagingApi": {
+          "id": "FzoDalEaBcJhhHnX",
+          "name": "Line Messaging account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "showLoadingAnimation",
+        "chatId": "={{ $json.body.events[0].source.userId }}",
+        "loadingSeconds": 55
+      },
+      "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        304
+      ],
+      "id": "c6a3da3a-70f8-422c-8254-6db290631e55",
+      "name": "Line Loading Animation",
+      "credentials": {
+        "lineMessagingApi": {
+          "id": "FzoDalEaBcJhhHnX",
+          "name": "Line Messaging account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=./conversations/register.sh {{ $json.profile.userId }}",
+        "cwd": "/home/n8nbot/ttca/"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        0,
+        496
+      ],
+      "id": "6f5a38ff-d590-4b2b-8f96-89ff50315363",
+      "name": "Execute a command",
+      "credentials": {
+        "sshPassword": {
+          "id": "8teyUXaxD5gHj9PL",
+          "name": "SSH Password account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { sessionId, isNewUser } = JSON.parse($json.stdout);\n\nreturn [{ json: { sessionId, isNewUser } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        496
+      ],
+      "id": "afa3a75f-e773-4448-9096-4f2c4b95b552",
+      "name": "Get sessionId"
+    },
+    {
+      "parameters": {
+        "command": "=source /home/n8nbot/.nvm/nvm.sh && cd /home/n8nbot/ttca && claude -p \"{{ $('Webhook from Line Message').item.json.body.events[0].message.text }}\" --dangerously-skip-permissions",
+        "cwd": "/home/n8nbot/ttca"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        672,
+        336
+      ],
+      "id": "4b176573-4d34-4178-88fd-e05d2e6236d5",
+      "name": "Start new Claude Code Session",
+      "credentials": {
+        "sshPassword": {
+          "id": "8teyUXaxD5gHj9PL",
+          "name": "SSH Password account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b9ac5c34-df26-46bd-a574-a95657f44f8e",
+              "leftValue": "={{ $json.isNewUser }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        368,
+        496
+      ],
+      "id": "9589f6b9-590d-46fd-b1bc-7a0d1bd550e5",
+      "name": "If it is new user"
+    },
+    {
+      "parameters": {
+        "command": "=source /home/n8nbot/.nvm/nvm.sh && cd /home/n8nbot/ttca && claude -p \"{{ $('Webhook from Line Message').item.json.body.events[0].message.text }}\" --dangerously-skip-permissions",
+        "cwd": "/home/n8nbot/ttca"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        672,
+        544
+      ],
+      "id": "f969b675-8de0-45ed-a8b5-7945ed73416c",
+      "name": "Resume Claude Code Session",
+      "credentials": {
+        "sshPassword": {
+          "id": "8teyUXaxD5gHj9PL",
+          "name": "SSH Password account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook from Line Message": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.lis186.com",
+            "user-agent": "LineBotWebhook/2.0",
+            "content-length": "842",
+            "content-type": "application/json; charset=utf-8",
+            "via": "2.0 Caddy",
+            "x-forwarded-for": "147.92.149.165",
+            "x-forwarded-host": "n8n.lis186.com",
+            "x-forwarded-proto": "https",
+            "x-line-signature": "7nd0WjzgVTzrIDgvdy8rUGrxJT1BOS/UY3EREgfRqbI=",
+            "accept-encoding": "gzip"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "destination": "U8dfb4b17d6c78e73bfd1076a58818823",
+            "events": [
+              {
+                "type": "message",
+                "message": {
+                  "type": "text",
+                  "id": "592497691532198263",
+                  "quoteToken": "OaHchihHq3ICV_BrnrqbfWv0fKre04xMNR_UAD7cJt_zwDbS0uSY7Wb62l-LpXa05wlSqD685MK3MD94QRD9n3x86h3qMCBVOWymLWNAeu0ifTdO7CbHY5b3xqp3N-HC5myyjDIlPuEtmnTSv0ME1A",
+                  "markAsReadToken": "fFYRFOd4aREihi7rKIl8ZQ5Y6HCXamh2W0Z_mC0VvdRzAskymEYvLW0ChdJlrkBYcmTl_xD9PEooxK1RzD50wAr7PMYDy5hRdBgkbnuPHY1WvksKSep8rEohk6yzsegvTt7FADTvY7ehyksoWw9nZ5elRrZIP5sNnerkiIWQLshrV_L5ZW6Rd-4i9bDVvilygdWMAfGeUQrUvzWTzdEIGQ",
+                  "text": "Taipei to lawdong on 2026 Jan 17 arrive before noon"
+                },
+                "webhookEventId": "01KCPGVXTWCJVRFTQY4CCFNYPM",
+                "deliveryContext": {
+                  "isRedelivery": false
+                },
+                "timestamp": 1765987448355,
+                "source": {
+                  "type": "user",
+                  "userId": "U245eadd564bb5e6836d61a74942c6d50"
+                },
+                "replyToken": "849bf565022c4b7b846f148282e9fdc2",
+                "mode": "active"
+              }
+            ]
+          },
+          "webhookUrl": "https://n8n.lis186.com/webhook/smart-tra",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook from Line Message": {
+      "main": [
+        [
+          {
+            "node": "Line Messaging",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Line Loading Animation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Line : Train Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Line Messaging": {
+      "main": [
+        [
+          {
+            "node": "Execute a command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a command": {
+      "main": [
+        [
+          {
+            "node": "Get sessionId",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start new Claude Code Session": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get sessionId": {
+      "main": [
+        [
+          {
+            "node": "If it is new user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If it is new user": {
+      "main": [
+        [
+          {
+            "node": "Start new Claude Code Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resume Claude Code Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Claude Code Session": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e3b6da3c-675a-4933-a943-5827492eded6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bc516030715e083599329cbf43b523e592c31ed236542495161a6c6b4f0d146f"
+  },
+  "id": "UGJDY1svhidRzw1o",
+  "tags": []
+}
