@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import type { AppConfig, ConfigKey } from '../types/config.js';
+import type { ApiKeyCredential } from '../types/api-key.js';
 
 const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.config', 'tdx-tra');
 const DEFAULT_CONFIG_FILE = 'config.json';
@@ -120,6 +121,52 @@ export class ConfigService {
     const clientId = this.getClientId();
     const clientSecret = this.getClientSecret();
     return Boolean(clientId && clientSecret);
+  }
+
+  /**
+   * 取得所有 API Key 憑證
+   * 支援編號後綴格式：TDX_CLIENT_ID, TDX_CLIENT_ID_2, ..., TDX_CLIENT_ID_10
+   * @returns ApiKeyCredential[] 至少一組（如有設定），否則空陣列
+   */
+  getApiKeys(): ApiKeyCredential[] {
+    const keys: ApiKeyCredential[] = [];
+    const maxKeys = 10;
+
+    // 1. 主要 Key（無後綴）
+    const mainId = this.getClientId();
+    const mainSecret = this.getClientSecret();
+    if (mainId && mainSecret) {
+      keys.push({
+        id: 'key-1',
+        clientId: mainId,
+        clientSecret: mainSecret,
+        label: process.env.TDX_KEY_LABEL || 'primary',
+      });
+    }
+
+    // 2. 額外 Key（後綴 _2, _3, ..., _10）
+    for (let i = 2; i <= maxKeys; i++) {
+      const id = process.env[`TDX_CLIENT_ID_${i}`];
+      const secret = process.env[`TDX_CLIENT_SECRET_${i}`];
+
+      if (id && secret) {
+        keys.push({
+          id: `key-${i}`,
+          clientId: id,
+          clientSecret: secret,
+          label: process.env[`TDX_KEY_LABEL_${i}`] || `key-${i}`,
+        });
+      }
+    }
+
+    return keys;
+  }
+
+  /**
+   * 檢查是否有多組 API Key
+   */
+  hasMultipleKeys(): boolean {
+    return this.getApiKeys().length > 1;
   }
 }
 

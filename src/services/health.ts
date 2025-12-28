@@ -110,16 +110,23 @@ export class HealthCheckService {
   /**
    * 檢查認證服務狀態
    * 驗證 token 是否有效或可以獲取
+   * 🔧 Multi-Key 改善：使用 Pool 檢查
    */
   private async checkAuthHealth(): Promise<ComponentHealth> {
     try {
-      const { auth } = this.apiClient.getInternalServices();
+      const { pool } = this.apiClient.getInternalServices();
+
+      // 取得第一個可用的 Slot 來檢查 Token
+      const slot = pool.getSlot();
+      const auth = slot.getAuthService();
 
       // 檢查快取的 token 是否有效
       if (auth.isTokenValid()) {
+        const slotCount = pool.getSlotCount();
+        const activeCount = pool.getActiveSlotCount();
         return {
           status: 'healthy',
-          details: 'Token 有效',
+          details: `Token 有效 (${activeCount}/${slotCount} Keys 可用)`,
           lastChecked: new Date().toISOString()
         };
       }
@@ -128,9 +135,10 @@ export class HealthCheckService {
       const token = await auth.getToken();
 
       if (token && token.length > 0) {
+        const slotCount = pool.getSlotCount();
         return {
           status: 'healthy',
-          details: 'Token 可正常取得',
+          details: `Token 可正常取得 (${slotCount} Keys)`,
           lastChecked: new Date().toISOString()
         };
       }

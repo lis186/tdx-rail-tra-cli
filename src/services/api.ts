@@ -11,6 +11,8 @@ import { CircuitBreaker } from './circuit-breaker.js';
 import { retry, isRetryableStatus } from './retry.js';
 import { loggers } from '../lib/logger.js';
 import * as metrics from '../lib/metrics.js';
+import { ApiKeyPool } from './api-key-pool.js';
+import type { ApiKeyCredential, ApiKeySlotMetrics } from '../types/api-key.js';
 // 🔧 P2 改善：導出 Prometheus 指標
 export { getMetricsSnapshot, getMetricsContentType } from '../lib/metrics.js';
 // 🔧 P1 改善：導出新的重試策略 (可選使用)
@@ -62,15 +64,42 @@ export interface ApiOptions {
 }
 
 export class TDXApiClient {
-  private auth: AuthService;
+  private pool: ApiKeyPool;
   private cache: CacheService;
-  private rateLimiter: RateLimiter;
   private circuitBreaker: CircuitBreaker;
 
-  constructor(clientId: string, clientSecret: string) {
-    this.auth = new AuthService(clientId, clientSecret);
+  // 向後相容的舊屬性（deprecated，僅用於測試）
+  private auth?: AuthService;
+  private rateLimiter?: RateLimiter;
+
+  /**
+   * 建構 TDX API 客戶端
+   * @param credentialsOrPool - 單一憑證（向後相容）、憑證陣列或 ApiKeyPool
+   * @param clientSecret - 單一憑證的 secret（向後相容）
+   */
+  constructor(
+    credentialsOrPool: string | ApiKeyCredential[] | ApiKeyPool,
+    clientSecret?: string
+  ) {
+    // 建立 ApiKeyPool
+    if (credentialsOrPool instanceof ApiKeyPool) {
+      // 已經是 Pool
+      this.pool = credentialsOrPool;
+    } else if (typeof credentialsOrPool === 'string' && clientSecret) {
+      // 向後相容：單一 Key
+      this.pool = new ApiKeyPool([{
+        clientId: credentialsOrPool,
+        clientSecret,
+        label: 'default',
+      }]);
+    } else if (Array.isArray(credentialsOrPool)) {
+      // 憑證陣列
+      this.pool = new ApiKeyPool(credentialsOrPool);
+    } else {
+      throw new Error('Invalid credentials provided to TDXApiClient');
+    }
+
     this.cache = new CacheService();
-    this.rateLimiter = new RateLimiter();
 
     // 🔧 初始化 Circuit Breaker (P1 改善)
     this.circuitBreaker = new CircuitBreaker('TDX-API', {
@@ -424,15 +453,21 @@ export class TDXApiClient {
   /**
    * 發送帶認證的 API 請求
    * 包含 Circuit Breaker、Rate Limiting、Retry 和 Logging 機制 (P1 改善)
+   * 🔧 Multi-Key 改善：使用 ApiKeyPool 選擇最佳 Slot
    */
   private async request<T>(url: string, query?: Record<string, string>): Promise<T> {
     const startTime = Date.now();
     const requestId = loggers.api.getCurrentRequestId();
 
+    // 🔧 取得最佳可用 Slot
+    const slot = this.pool.getSlot();
+    const slotId = slot.id;
+
     loggers.api.debug('API request started', {
       requestId,
       url,
-      query
+      query,
+      slotId,
     });
 
     try {
@@ -441,11 +476,11 @@ export class TDXApiClient {
         // 使用 retry 包裝請求，處理暫時性錯誤
         retry(
           async () => {
-            // 取得 rate limit token
-            await this.rateLimiter.acquire();
+            // 🔧 使用 Slot 的 RateLimiter
+            await slot.getRateLimiter().acquire();
 
-            // 取得 auth token
-            const token = await this.auth.getToken();
+            // 🔧 使用 Slot 的 AuthService
+            const token = await slot.getAuthService().getToken();
 
             return ofetch<T>(url, {
               headers: {
@@ -472,7 +507,7 @@ export class TDXApiClient {
                 if (status) {
                   // 401 表示 token 過期，清除快取後重試
                   if (status === 401) {
-                    this.auth.clearCache();
+                    slot.getAuthService().clearCache();
                     return true;
                   }
                   return isRetryableStatus(status);
@@ -497,12 +532,16 @@ export class TDXApiClient {
         )
       );
 
+      // 🔧 記錄成功
+      slot.recordSuccess();
+
       const duration = Date.now() - startTime;
       loggers.api.info('API request completed', {
         requestId,
         url,
         duration,
-        statusCode: 200
+        statusCode: 200,
+        slotId,
       });
 
       // 🔧 記錄 Prometheus 指標 (P2 改善)
@@ -515,6 +554,9 @@ export class TDXApiClient {
 
       return result;
     } catch (error) {
+      // 🔧 記錄失敗
+      slot.recordFailure(error instanceof Error ? error : new Error(String(error)));
+
       const duration = Date.now() - startTime;
       const statusCode = (error as any)?.statusCode || (error as any)?.status || 500;
 
@@ -525,7 +567,8 @@ export class TDXApiClient {
           requestId,
           url,
           duration,
-          statusCode
+          statusCode,
+          slotId,
         }
       );
 
@@ -560,10 +603,31 @@ export class TDXApiClient {
    */
   getInternalServices() {
     return {
-      auth: this.auth,
+      pool: this.pool,
       cache: this.cache,
       circuitBreaker: this.circuitBreaker
     };
+  }
+
+  /**
+   * 🔧 取得 API Key Pool 指標（用於監控）
+   */
+  getPoolMetrics(): ApiKeySlotMetrics[] {
+    return this.pool.getMetrics();
+  }
+
+  /**
+   * 🔧 取得 Pool 總容量
+   */
+  getPoolCapacity(): { available: number; max: number } {
+    return this.pool.getTotalCapacity();
+  }
+
+  /**
+   * 🔧 檢查是否有多組 Key
+   */
+  hasMultipleKeys(): boolean {
+    return this.pool.getSlotCount() > 1;
   }
 
   /**
