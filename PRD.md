@@ -3,7 +3,7 @@
 > Taiwan Railway (TRA) CLI tool powered by TDX API
 > Version: 1.0
 > Date: 2025-12-26
-> Status: Phase 8 Complete (UX Optimization) | 表格對齊 + 車種名稱簡化 + 車站出口資訊
+> Status: Phase 8 Complete (UX Optimization) | 表格對齊 + 車種名稱簡化 + 車站出口資訊 + MAAS Deeplink
 
 ---
 
@@ -326,6 +326,8 @@ getSlot(): ApiKeySlot {
 | `Rail/TRA/ODFare/{from}/to/{to}` | v3 | 起訖站票價 | `tra fare` |
 | `/booking/deeplink/web/tra` | v3 | 網頁訂票連結 | `tra book` |
 | `/booking/deeplink/direct/tra` | v3 | APP 訂票深度鏈結 | `tra book --app` |
+| `/api/maas/routing` | v3 | MAAS 旅運規劃（取得 UUID） | `tra book --deeplink` |
+| `/api/maas-tra/booking/deeplink/url/tra` | v3 | MAAS Deeplink URL（UUID 換連結） | `tra book --deeplink` |
 
 #### 擴充 API（Phase 2+）
 
@@ -736,6 +738,8 @@ tra book --train <train-no> --from <station> --to <station> --date <YYYY-MM-DD> 
 
 # Options:
 --app                              # 生成 APP 深度鏈結（而非網頁連結）
+--deeplink                         # 使用 MAAS Deeplink 流程（需 MAAS 權限）
+--time <HH:MM>                     # 出發時間（用於 --deeplink 模式，預設 08:00）
 --type <1|2|3>                     # 票券類別：1=一般(預設) 2=騰雲座艙 3=兩鐵
 --quantity <1-9>                   # 票券數量（預設 1）
 --open                             # 自動開啟瀏覽器
@@ -752,6 +756,9 @@ tra book --train 123 --from 台北 --to 高雄 --date 2025-12-26 --type 2 --quan
 
 # 生成 APP 深度鏈結
 tra book --train 123 --from 台北 --to 高雄 --date 2025-12-26 --app
+
+# 使用 MAAS Deeplink 流程（可直接開啟台鐵 e 訂通 APP）
+tra book --train 123 --from 台北 --to 高雄 --date 2025-12-26 --deeplink --time 08:00
 ```
 
 **輸出**：
@@ -767,10 +774,39 @@ tra book --train 123 --from 台北 --to 高雄 --date 2025-12-26 --app
     "destination": "高雄",
     "date": "2025-12-26",
     "ticketType": 1,
-    "quantity": 1
+    "quantity": 1,
+    "apiUsed": true
   }
 }
 ```
+
+**MAAS Deeplink 輸出**（使用 `--deeplink`）：
+
+```json
+{
+  "success": true,
+  "data": {
+    "url": "traETicket://booking?token=xxx...",
+    "type": "deeplink",
+    "trainNo": "123",
+    "origin": "臺北",
+    "destination": "高雄",
+    "date": "2025-12-26",
+    "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "expiresAt": "2025-12-26 08:03:00",
+    "expiresIn": 180,
+    "apiUsed": true
+  }
+}
+```
+
+**MAAS Deeplink 流程說明**：
+
+1. 呼叫旅運規劃 API（`/api/maas/routing`）取得路線方案與 UUID
+2. 用 UUID 換取 Deeplink URL（`/api/maas-tra/booking/deeplink/url/tra`）
+3. 回傳可直接開啟台鐵 e 訂通 APP 的連結（有效期 3 分鐘）
+
+> ⚠️ **注意**：MAAS Deeplink 需要額外申請「城際運輸票務整合功能模組」權限。若 API 失敗會自動 fallback 到基本網頁連結。
 
 #### `tra cache` - 快取管理
 
@@ -2344,6 +2380,8 @@ const status = formatDelayStatus(train.delayTime, true);
 
 - TRA 資料 API Swagger: https://tdx.transportdata.tw/webapi/File/Swagger/V3/5fa88b0c-120b-43f1-b188-c379ddb2593d
 - TRA 訂票 API Swagger: https://tdx.transportdata.tw/webapi/File/Swagger/V3/ad884f5e-4692-4600-8662-12abf40e5946
+- MAAS Deeplink API Swagger: https://tdx.transportdata.tw/webapi/File/Swagger/V3/ad884f5e-4692-4600-8662-12abf40e5946
+- MAAS 旅運規劃 API Swagger: https://tdx.transportdata.tw/webapi/File/Swagger/V3/4513f9d6-caae-4cf7-a50c-e7887bec804e
 - TDX Portal: https://tdx.transportdata.tw/
 
 ## Appendix E: TPASS Data Structure

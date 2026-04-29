@@ -253,9 +253,42 @@ tra book --train 123 --from 台北 --to 高雄 --date 2025-01-15
 # Generate app deep link
 tra book --train 123 --from 台北 --to 高雄 --date 2025-01-15 --app
 
+# Generate MAAS Deeplink (requires special TDX subscription)
+tra book --train 123 --from 台北 --to 高雄 --date 2025-01-15 --deeplink
+
+# With specific departure time (for --deeplink)
+tra book --train 123 --from 台北 --to 高雄 --date 2025-01-15 --time 08:00 --deeplink
+
+# Specify ticket type and quantity
+tra book --train 123 --from 台北 --to 高雄 --date 2025-01-15 --type 2 --quantity 2
+
 # Open in browser
 tra book --train 123 --from 台北 --to 高雄 --date 2025-01-15 --open
 ```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--train <trainNo>` | Train number (required) |
+| `--from <station>` | Origin station (required) |
+| `--to <station>` | Destination station (required) |
+| `--date <YYYY-MM-DD>` | Travel date (required) |
+| `--time <HH:MM>` | Departure time, for `--deeplink` mode (default: 08:00) |
+| `--type <type>` | Ticket type: 1=general, 2=business, 3=bike (default: 1) |
+| `--quantity <n>` | Ticket quantity 1-9 (default: 1) |
+| `--app` | Generate APP deep link |
+| `--deeplink` | Use MAAS Deeplink flow (requires TDX MAAS subscription) |
+| `--open` | Auto-open in browser |
+
+**MAAS Deeplink Mode (`--deeplink`):**
+
+Uses the official TDX MAAS API flow to generate a deeplink that opens directly in the TRA e-Ticketing APP with all parameters pre-filled:
+
+1. Calls Trip Planning API (`/api/maas/routing`) to get route with UUID
+2. Exchanges UUID for deeplink URL (`/api/maas-tra/booking/deeplink/url/tra`)
+3. Returns a redirect URL (expires in 3 minutes)
+
+> **Note:** Requires applying for "城際運輸票務整合功能模組" (Intercity Transport Ticketing Integration Module) at TDX Member Center → Data Services → Access Permissions.
 
 ### `tra tpass` - TPASS Monthly Pass
 
