@@ -27,6 +27,7 @@ import { StationTimetableMatcher } from '../lib/station-timetable-matcher.js';
 import { AlertService, NormalizedAlert } from '../services/alert.js';
 import type { DailyTrainTimetable } from '../types/api.js';
 import { simplifyTrainType } from '../lib/train-type.js';
+import { loggers } from '../services/api.js';
 
 // 支線 Line ID 列表
 const BRANCH_LINE_IDS = ['PX', 'SA', 'JJ', 'NW', 'LJ', 'SH'];
@@ -410,8 +411,8 @@ export const journeyCommand = new Command('journey')
           { skipCache: !options.cache }
         );
         branchLineResolver.load(lineTransfers, stationOfLines);
-      } catch {
-        // 如果 API 失敗，使用預設值（不影響主流程）
+      } catch (err) {
+        loggers.api.debug('支線/轉乘資料載入失敗，使用預設值', { error: err instanceof Error ? err.message : String(err) });
       }
 
       // Step 0.5: 檢查站點是否停駛
