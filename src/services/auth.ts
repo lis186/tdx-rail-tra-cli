@@ -64,7 +64,8 @@ export class AuthService {
         this.cacheService.set<CachedToken>(
           TOKEN_CACHE_KEY,
           this.cachedToken,
-          TOKEN_CACHE_TTL_MS
+          TOKEN_CACHE_TTL_MS,
+          true
         );
       } catch (error) {
         // 忽略保存錯誤，Token 仍在內存中

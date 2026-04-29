@@ -55,7 +55,7 @@ export class CacheService {
   /**
    * 儲存資料到快取
    */
-  set<T>(key: string, data: T, ttlMs: number = DEFAULT_TTL_MS): void {
+  set<T>(key: string, data: T, ttlMs: number = DEFAULT_TTL_MS, sensitive = false): void {
     const filePath = this.keyToPath(key);
     const entry: CacheEntry<T> = {
       data,
@@ -63,6 +63,9 @@ export class CacheService {
       createdAt: Date.now(),
     };
     fs.writeFileSync(filePath, JSON.stringify(entry), 'utf-8');
+    if (sensitive) {
+      try { fs.chmodSync(filePath, 0o600); } catch { /* Windows 靜默忽略 */ }
+    }
   }
 
   /**

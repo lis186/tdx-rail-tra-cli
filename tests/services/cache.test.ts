@@ -157,4 +157,25 @@ describe('CacheService', () => {
       expect(cacheService.getCacheDir()).toBe(testCacheDir);
     });
   });
+
+  describe('sensitive flag', () => {
+    it('should apply 0o600 permission when sensitive=true', () => {
+      cacheService.set('auth/token', { accessToken: 'secret' }, 60000, true);
+      const filePath = path.join(testCacheDir, 'auth', 'token.json');
+      const stat = fs.statSync(filePath);
+      // Windows: mode will be different; skip on non-unix
+      if (process.platform !== 'win32') {
+        expect(stat.mode & 0o777).toBe(0o600);
+      }
+    });
+
+    it('should not restrict permission when sensitive=false', () => {
+      cacheService.set('timetable/test', { data: 'ok' }, 60000, false);
+      const filePath = path.join(testCacheDir, 'timetable', 'test.json');
+      const stat = fs.statSync(filePath);
+      if (process.platform !== 'win32') {
+        expect(stat.mode & 0o777).not.toBe(0o600);
+      }
+    });
+  });
 });
