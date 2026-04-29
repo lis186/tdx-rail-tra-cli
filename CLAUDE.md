@@ -21,10 +21,11 @@ bun run dev                      # Run in development mode
 bun run build                    # Build for production
 
 # Testing (TDD approach - write tests first)
-bun test                         # Run all tests
-bun test tests/lib/fuzzy.test.ts # Run single test file
-bun test --watch                 # Watch mode
-bun test --coverage              # Coverage report (target: >80%)
+# ⚠️ 必須用 bun run test，不可用 bun test（vitest vs bun test runner 不相容）
+bun run test                          # Run all tests
+bun run test tests/lib/fuzzy.test.ts  # Run single test file
+bun run test -- --watch               # Watch mode
+bun run test:coverage                 # Coverage report (target: >80%)
 
 # CLI testing
 bun run src/index.ts stations list
