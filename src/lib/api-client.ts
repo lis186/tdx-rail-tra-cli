@@ -7,14 +7,9 @@ import { TDXApiClient } from '../services/api.js';
 import { getConfigService } from '../services/config.js';
 
 let cachedClient: TDXApiClient | null = null;
+let cachedKeysFingerprint: string | null = null;
 
-/**
- * 取得 TDXApiClient 實例
- * 支援多組 API Key（透過 ConfigService.getApiKeys()）
- * @throws Error 如果未設定 API 憑證
- */
 export function getApiClient(): TDXApiClient {
-  // 如果已有快取且 Key 數量相同，直接返回
   const config = getConfigService();
   const keys = config.getApiKeys();
 
@@ -25,9 +20,10 @@ export function getApiClient(): TDXApiClient {
     process.exit(1);
   }
 
-  // 使用快取（避免重複建立）
-  if (!cachedClient) {
+  const fingerprint = JSON.stringify(keys.map(k => k.clientId));
+  if (!cachedClient || cachedKeysFingerprint !== fingerprint) {
     cachedClient = new TDXApiClient(keys);
+    cachedKeysFingerprint = fingerprint;
   }
 
   return cachedClient;
@@ -38,6 +34,7 @@ export function getApiClient(): TDXApiClient {
  */
 export function clearApiClientCache(): void {
   cachedClient = null;
+  cachedKeysFingerprint = null;
 }
 
 /**
