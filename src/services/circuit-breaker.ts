@@ -1,8 +1,4 @@
-/**
- * Circuit Breaker - 故障隔離模式
- * 防止級聯故障，提供自動恢復機制
- * 三態轉換: CLOSED → OPEN → HALF_OPEN → CLOSED
- */
+import { loggers } from '../lib/logger.js';
 
 export enum CircuitState {
   CLOSED = 'CLOSED',           // 正常工作
@@ -61,9 +57,7 @@ export class CircuitBreaker {
     // 檢查是否需要轉換到 HALF_OPEN
     if (this.state === CircuitState.OPEN) {
       if (Date.now() - this.lastFailureTime > this.config.timeout) {
-        console.log(
-          `[CircuitBreaker ${this.name}] OPEN → HALF_OPEN (recovery attempt)`
-        );
+        loggers.circuitBreaker.warn(`${this.name} OPEN → HALF_OPEN (recovery attempt)`);
         this.transitionTo(CircuitState.HALF_OPEN);
         this.successCount = 0;
       } else {
@@ -99,14 +93,10 @@ export class CircuitBreaker {
 
     if (this.state === CircuitState.HALF_OPEN) {
       this.successCount++;
-      console.log(
-        `[CircuitBreaker ${this.name}] HALF_OPEN → Success (${this.successCount}/${this.config.successThreshold})`
-      );
+      loggers.circuitBreaker.warn(`${this.name} HALF_OPEN → Success (${this.successCount}/${this.config.successThreshold})`);
 
       if (this.successCount >= this.config.successThreshold) {
-        console.log(
-          `[CircuitBreaker ${this.name}] HALF_OPEN → CLOSED (recovered)`
-        );
+        loggers.circuitBreaker.warn(`${this.name} HALF_OPEN → CLOSED (recovered)`);
         this.transitionTo(CircuitState.CLOSED);
       }
     }
@@ -117,22 +107,16 @@ export class CircuitBreaker {
     this.lastFailureTime = Date.now();
     this.failureCount++;
 
-    console.log(
-      `[CircuitBreaker ${this.name}] Failure (${this.failureCount}/${this.config.failureThreshold})`
-    );
+    loggers.circuitBreaker.warn(`${this.name} Failure (${this.failureCount}/${this.config.failureThreshold})`);
 
     if (this.failureCount >= this.config.failureThreshold) {
-      console.log(
-        `[CircuitBreaker ${this.name}] CLOSED → OPEN (circuit breaker triggered)`
-      );
+      loggers.circuitBreaker.warn(`${this.name} CLOSED → OPEN (circuit breaker triggered)`);
       this.transitionTo(CircuitState.OPEN);
     }
 
     if (this.state === CircuitState.HALF_OPEN) {
       // HALF_OPEN 中失敗，重新開啟
-      console.log(
-        `[CircuitBreaker ${this.name}] HALF_OPEN → OPEN (recovery failed)`
-      );
+      loggers.circuitBreaker.warn(`${this.name} HALF_OPEN → OPEN (recovery failed)`);
       this.transitionTo(CircuitState.OPEN);
     }
   }
