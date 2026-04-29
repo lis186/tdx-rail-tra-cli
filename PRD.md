@@ -1113,7 +1113,7 @@ tra config set lang en
 ├── timetable/
 │   └── od-{from}-{to}-{date}.json   # 時刻表快取
 ├── meta.json               # 快取 metadata（版本、更新時間）
-└── token.json              # OAuth token（加密）
+└── token.json              # OAuth token（chmod 600 保護）
 ```
 
 ### 7.2 Cache Policy（對齊 n8n workflow）

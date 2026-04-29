@@ -328,7 +328,7 @@ tra config init
 
 # Set config value
 tra config set lang en
-tra config set default-format table
+tra config set format table
 
 # Get config value
 tra config get lang
@@ -607,7 +607,7 @@ This CLI implements TDX API best practices:
 ```bash
 git clone https://github.com/user/tdx-rail-tra-cli.git
 cd tdx-rail-tra-cli
-npm install
+bun install
 cp .env.example .env  # Add your TDX credentials
 ```
 
@@ -615,22 +615,22 @@ cp .env.example .env  # Add your TDX credentials
 
 ```bash
 # Development
-npm run dev -- stations list
+bun run dev -- stations list
 
 # Build
-npm run build
+bun run build
 
 # Build binaries (requires Bun)
-npm run build:binary        # Current platform
-npm run build:binary:all    # All platforms
+bun run build:binary        # Current platform
+bun run build:binary:all    # All platforms
 
 # Test
-npm test                    # Run all tests
-npm run test:watch          # Watch mode
-npm run test:coverage       # Coverage report
+bun run test                # Run all tests
+bun run test -- --watch     # Watch mode
+bun run test:coverage       # Coverage report
 
 # Type check
-npm run typecheck
+bun run typecheck
 ```
 
 ### Testing
@@ -638,14 +638,14 @@ npm run typecheck
 The project uses Vitest with TDD methodology:
 
 ```bash
-# Run all 885+ tests
-npm test
+# Run all 933+ tests
+bun run test
 
 # Run specific test file
-npm test -- tests/lib/station-resolver.test.ts
+bun run test tests/lib/station-resolver.test.ts
 
 # Watch mode
-npm run test:watch
+bun run test -- --watch
 ```
 
 Test categories:

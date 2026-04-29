@@ -1,6 +1,6 @@
 {
   "name": "tdx-rail-tra-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Taiwan Railway (TRA) CLI tool powered by TDX API",
   "type": "module",
   "bin": {
