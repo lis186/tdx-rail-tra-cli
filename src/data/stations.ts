@@ -302,4 +302,6 @@ export const STATION_CORRECTIONS: Record<string, string> = {
   '左營車站': '新左營',
   '台北站': '臺北',
   '板橋站': '板橋',
+  '瑞方': '瑞芳',
+  '版橋': '板橋',
 };

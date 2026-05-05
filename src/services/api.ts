@@ -49,6 +49,18 @@ import type {
 } from '../types/api.js';
 
 const API_BASE = 'https://tdx.transportdata.tw/api/basic';
+const BOOKING_BASE = 'https://tdx.transportdata.tw/api/maas-tra';
+
+export interface BookingDeeplinkItem {
+  deeplink: string;
+  expired: string;
+}
+
+interface BookingResponse {
+  result: 'success' | 'fail';
+  data?: BookingDeeplinkItem | BookingDeeplinkItem[];
+  error?: { code: number; msg: string };
+}
 
 // 快取 TTL 設定 (毫秒)
 const CACHE_TTL = {
@@ -628,6 +640,103 @@ export class TDXApiClient {
    */
   hasMultipleKeys(): boolean {
     return this.pool.getSlotCount() > 1;
+  }
+
+  /**
+   * 取得網頁訂票深度連結（導向台鐵官網）
+   */
+  async bookingDeeplinkWeb(params: {
+    startStation: string;
+    endStation: string;
+    departureDate: string;
+    departureNumber: string;
+    ticketType: number;
+    ticketCount: number;
+  }): Promise<BookingDeeplinkItem> {
+    const url = `${BOOKING_BASE}/booking/deeplink/web/tra`;
+    const response = await this.requestMaas<BookingResponse>(url, {
+      start_station: params.startStation,
+      end_station: params.endStation,
+      departure_date: params.departureDate,
+      departure_number: params.departureNumber,
+      ticket_type: String(params.ticketType),
+      ticket_count: String(params.ticketCount),
+    });
+    const item = Array.isArray(response.data) ? response.data[0] : response.data;
+    if (response.result !== 'success' || !item) {
+      throw new Error(response.error?.msg ?? '訂票連結取得失敗');
+    }
+    return item;
+  }
+
+  /**
+   * 取得 APP 深度連結（喚起台鐵 e 訂通 APP）
+   */
+  async bookingDeeplinkDirect(params: {
+    startStation: string;
+    endStation: string;
+    trainDate: string;
+    trainNumber: string;
+  }): Promise<BookingDeeplinkItem> {
+    const url = `${BOOKING_BASE}/booking/deeplink/direct/tra`;
+    const response = await this.requestMaas<BookingResponse>(url, {
+      start_station: params.startStation,
+      end_station: params.endStation,
+      train_date: params.trainDate,
+      train_number: params.trainNumber,
+    });
+    const item = Array.isArray(response.data) ? response.data[0] : response.data;
+    if (response.result !== 'success' || !item) {
+      throw new Error(response.error?.msg ?? '訂票連結取得失敗');
+    }
+    return item;
+  }
+
+  /**
+   * maas-tra 專用請求（不帶 OData $format 參數）
+   */
+  private async requestMaas<T>(url: string, query: Record<string, string>): Promise<T> {
+    const slot = this.pool.getSlot();
+    try {
+      const result = await this.circuitBreaker.execute(() =>
+        retry(
+          async () => {
+            await slot.getRateLimiter().acquire();
+            const token = await slot.getAuthService().getToken();
+            return ofetch<T>(url, {
+              headers: { Authorization: `Bearer ${token}` },
+              query,
+            });
+          },
+          {
+            maxRetries: 3,
+            baseDelayMs: 1000,
+            maxDelayMs: 10000,
+            shouldRetry: (error: unknown) => {
+              if (error instanceof FetchError) {
+                const status = error.statusCode ?? error.status;
+                if (status === 401) {
+                  slot.getAuthService().clearCache();
+                  return true;
+                }
+                if (status) return isRetryableStatus(status);
+              }
+              if (error instanceof Error) {
+                const msg = error.message.toLowerCase();
+                return msg.includes('network') || msg.includes('timeout') ||
+                  msg.includes('econnreset') || msg.includes('fetch failed');
+              }
+              return false;
+            },
+          }
+        )
+      );
+      slot.recordSuccess();
+      return result;
+    } catch (error) {
+      slot.recordFailure(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   /**
