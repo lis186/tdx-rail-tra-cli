@@ -467,7 +467,7 @@ export class TDXApiClient {
    * 包含 Circuit Breaker、Rate Limiting、Retry 和 Logging 機制 (P1 改善)
    * 🔧 Multi-Key 改善：使用 ApiKeyPool 選擇最佳 Slot
    */
-  private async request<T>(url: string, query?: Record<string, string>): Promise<T> {
+  private async request<T>(url: string, query?: Record<string, string>, options?: { skipFormat?: boolean }): Promise<T> {
     const startTime = Date.now();
     const requestId = loggers.api.getCurrentRequestId();
 
@@ -498,14 +498,9 @@ export class TDXApiClient {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-              query: query
-                ? {
-                    ...query,
-                    $format: 'JSON',
-                  }
-                : {
-                    $format: 'JSON',
-                  },
+              query: options?.skipFormat
+                ? query ?? {}
+                : { ...query, $format: 'JSON' },
             });
           },
           {
@@ -653,20 +648,19 @@ export class TDXApiClient {
     ticketType: number;
     ticketCount: number;
   }): Promise<BookingDeeplinkItem> {
-    const url = `${BOOKING_BASE}/booking/deeplink/web/tra`;
-    const response = await this.requestMaas<BookingResponse>(url, {
-      start_station: params.startStation,
-      end_station: params.endStation,
-      departure_date: params.departureDate,
-      departure_number: params.departureNumber,
-      ticket_type: String(params.ticketType),
-      ticket_count: String(params.ticketCount),
-    });
-    const item = Array.isArray(response.data) ? response.data[0] : response.data;
-    if (response.result !== 'success' || !item) {
-      throw new Error(response.error?.msg ?? '訂票連結取得失敗');
-    }
-    return item;
+    const response = await this.request<BookingResponse>(
+      `${BOOKING_BASE}/booking/deeplink/web/tra`,
+      {
+        start_station: params.startStation,
+        end_station: params.endStation,
+        departure_date: params.departureDate,
+        departure_number: params.departureNumber,
+        ticket_type: String(params.ticketType),
+        ticket_count: String(params.ticketCount),
+      },
+      { skipFormat: true }
+    );
+    return this.extractBookingItem(response);
   }
 
   /**
@@ -678,65 +672,25 @@ export class TDXApiClient {
     trainDate: string;
     trainNumber: string;
   }): Promise<BookingDeeplinkItem> {
-    const url = `${BOOKING_BASE}/booking/deeplink/direct/tra`;
-    const response = await this.requestMaas<BookingResponse>(url, {
-      start_station: params.startStation,
-      end_station: params.endStation,
-      train_date: params.trainDate,
-      train_number: params.trainNumber,
-    });
+    const response = await this.request<BookingResponse>(
+      `${BOOKING_BASE}/booking/deeplink/direct/tra`,
+      {
+        start_station: params.startStation,
+        end_station: params.endStation,
+        train_date: params.trainDate,
+        train_number: params.trainNumber,
+      },
+      { skipFormat: true }
+    );
+    return this.extractBookingItem(response);
+  }
+
+  private extractBookingItem(response: BookingResponse): BookingDeeplinkItem {
     const item = Array.isArray(response.data) ? response.data[0] : response.data;
     if (response.result !== 'success' || !item) {
       throw new Error(response.error?.msg ?? '訂票連結取得失敗');
     }
     return item;
-  }
-
-  /**
-   * maas-tra 專用請求（不帶 OData $format 參數）
-   */
-  private async requestMaas<T>(url: string, query: Record<string, string>): Promise<T> {
-    const slot = this.pool.getSlot();
-    try {
-      const result = await this.circuitBreaker.execute(() =>
-        retry(
-          async () => {
-            await slot.getRateLimiter().acquire();
-            const token = await slot.getAuthService().getToken();
-            return ofetch<T>(url, {
-              headers: { Authorization: `Bearer ${token}` },
-              query,
-            });
-          },
-          {
-            maxRetries: 3,
-            baseDelayMs: 1000,
-            maxDelayMs: 10000,
-            shouldRetry: (error: unknown) => {
-              if (error instanceof FetchError) {
-                const status = error.statusCode ?? error.status;
-                if (status === 401) {
-                  slot.getAuthService().clearCache();
-                  return true;
-                }
-                if (status) return isRetryableStatus(status);
-              }
-              if (error instanceof Error) {
-                const msg = error.message.toLowerCase();
-                return msg.includes('network') || msg.includes('timeout') ||
-                  msg.includes('econnreset') || msg.includes('fetch failed');
-              }
-              return false;
-            },
-          }
-        )
-      );
-      slot.recordSuccess();
-      return result;
-    } catch (error) {
-      slot.recordFailure(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
   }
 
   /**

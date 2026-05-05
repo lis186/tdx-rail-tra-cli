@@ -66,31 +66,22 @@ export const bookCommand = new Command('book')
     const api = getApiClient();
 
     try {
-      let deeplink: string;
-      let expired: string;
       const linkType = options.app ? 'app' : 'web';
-
-      if (options.app) {
-        const result = await api.bookingDeeplinkDirect({
-          startStation: fromStation.name,
-          endStation: toStation.name,
-          trainDate: options.date,
-          trainNumber: options.train,
-        });
-        deeplink = result.deeplink;
-        expired = result.expired;
-      } else {
-        const result = await api.bookingDeeplinkWeb({
-          startStation: fromStation.name,
-          endStation: toStation.name,
-          departureDate: options.date,
-          departureNumber: options.train,
-          ticketType: ticketTypeInfo.id,
-          ticketCount: quantity,
-        });
-        deeplink = result.deeplink;
-        expired = result.expired;
-      }
+      const { deeplink, expired } = await (options.app
+        ? api.bookingDeeplinkDirect({
+            startStation: fromStation.name,
+            endStation: toStation.name,
+            trainDate: options.date,
+            trainNumber: options.train,
+          })
+        : api.bookingDeeplinkWeb({
+            startStation: fromStation.name,
+            endStation: toStation.name,
+            departureDate: options.date,
+            departureNumber: options.train,
+            ticketType: ticketTypeInfo.id,
+            ticketCount: quantity,
+          }));
 
       if (format === 'json') {
         console.log(JSON.stringify({
